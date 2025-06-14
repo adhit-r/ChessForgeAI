@@ -85,8 +85,6 @@ export default function AnalysisPage() {
 
       if (historyOutput.games && historyOutput.games.length > 0) {
         toast({ title: "Games Fetched!", description: `Found ${historyOutput.games.length} games. Analyzing the first one.`, variant: "default"});
-        // For this iteration, analyze the first game.
-        // In a real app, you might let the user choose or process multiple.
         await processAnalysis(historyOutput.games[0], `${data.platform} (${data.username})`);
       } else {
         toast({ title: "No Games Found", description: `No games found for ${data.username} on ${data.platform}, or the platform integration is pending.`, variant: "default" });
@@ -98,7 +96,8 @@ export default function AnalysisPage() {
       setIsLoading(false);
     }
   };
-
+  // Explicit semicolon added before return statement to help parser
+  ;
   return (
     <div className="space-y-8">
       <PageTitle title="Game Analysis" subtitle="Import games and get AI-powered insights" icon={<FileText size={32}/>} />
