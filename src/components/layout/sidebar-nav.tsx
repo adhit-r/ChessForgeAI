@@ -96,7 +96,7 @@ export function SidebarNav() {
             <SidebarMenuItem key={index}>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Link href={item.disabled || !item.href && !item.items ? "#" : item.href || "#"} >
+                  <Link href={item.disabled || !item.href && !item.items ? "#" : item.href || "#"} asChild>
                     <SidebarMenuButton
                       variant="default"
                       size="default"
@@ -131,7 +131,7 @@ export function SidebarNav() {
                       <SidebarMenuSubItem key={subIndex}>
                          <Tooltip>
                           <TooltipTrigger asChild>
-                            <Link href={subItem.disabled || !subItem.href ? "#" : subItem.href} >
+                            <Link href={subItem.disabled || !subItem.href ? "#" : subItem.href} asChild>
                               <SidebarMenuSubButton
                                 size="md"
                                 isActive={isSubActive}
