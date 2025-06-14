@@ -13,6 +13,15 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID, // Optional
 };
 
+// For debugging API key issues
+if (typeof window !== 'undefined') {
+  console.log("Attempting to use Firebase API Key:", process.env.NEXT_PUBLIC_FIREBASE_API_KEY ? "Key Present (see next log)" : "Key NOT Present or Empty");
+  if (process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
+    console.log("Firebase API Key:", process.env.NEXT_PUBLIC_FIREBASE_API_KEY);
+  }
+}
+
+
 // Initialize Firebase
 let app: FirebaseApp;
 if (!getApps().length) {
