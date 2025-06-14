@@ -5,9 +5,9 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Bot, LogIn } from 'lucide-react';
+import { Bot, LogIn, User } from 'lucide-react';
 import { auth } from '@/lib/firebase'; // Import Firebase auth
-import { GoogleAuthProvider, signInWithPopup, UserCredential } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup, UserCredential, signInAnonymously } from 'firebase/auth';
 import { useToast } from "@/hooks/use-toast";
 
 // You might want specific icons for Google, Lichess, etc.
@@ -22,25 +22,32 @@ export default function LoginPage() {
       const provider = new GoogleAuthProvider();
       try {
         const result: UserCredential = await signInWithPopup(auth, provider);
-        // const credential = GoogleAuthProvider.credentialFromResult(result);
-        // const token = credential?.accessToken;
-        // const user = result.user;
         toast({ title: "Signed In", description: `Welcome, ${result.user.displayName || result.user.email}!`});
         router.push('/'); // Redirect to dashboard on successful login
       } catch (error: any) {
         console.error("Google Sign-In Error:", error);
         toast({ title: "Sign-In Error", description: error.message, variant: "destructive"});
       }
+    } else if (providerName === 'Lichess') {
+      // Placeholder: Actual Lichess OAuth flow will be more complex
+      toast({ title: "Lichess Login", description: "Lichess login requires server-side setup. We'll guide you once you have your Lichess Client ID.", variant: "default"});
+      // The actual flow would start with:
+      // const lichessAuthUrl = `https://lichess.org/oauth?client_id=YOUR_LICHESS_CLIENT_ID&response_type=code&redirect_uri=YOUR_REDIRECT_URI&scope=preference:read%20game:read`;
+      // window.location.href = lichessAuthUrl;
     } else {
-      // Placeholder for other providers
-      alert(`Login with ${providerName} is not yet implemented. This requires custom OAuth setup with Firebase and ${providerName}.`);
+      toast({ title: `${providerName} Login`, description: `Login with ${providerName} is coming soon!`, variant: "default"});
     }
   };
 
-  const handleGuestAccess = () => {
-    alert("Guest access clicked. This feature is not yet implemented.");
-    // In a real app, you might set a guest session and redirect
-    // router.push('/'); 
+  const handleGuestAccess = async () => {
+    try {
+      const userCredential = await signInAnonymously(auth);
+      toast({ title: "Guest Access", description: "You're browsing as a guest. Your data might be temporary." });
+      router.push('/'); 
+    } catch (error: any) {
+      console.error("Anonymous Sign-In Error:", error);
+      toast({ title: "Guest Access Error", description: error.message, variant: "destructive"});
+    }
   };
 
   return (
@@ -82,19 +89,21 @@ export default function LoginPage() {
               onClick={() => handleLogin('Chess.com')} 
               className="w-full"
               variant="outline"
+              disabled // Temporarily disable until explicitly worked on
             >
               {/* <ChesscomIcon className="mr-2 h-5 w-5" /> // Example */}
               <LogIn className="mr-2 h-5 w-5" /> 
-              Sign in with Chess.com
+              Sign in with Chess.com (Coming Soon)
             </Button>
              <Button 
               onClick={() => handleLogin('Chess24')} 
               className="w-full"
               variant="outline"
+              disabled // Temporarily disable until explicitly worked on
             >
               {/* <Chess24Icon className="mr-2 h-5 w-5" /> // Example */}
               <LogIn className="mr-2 h-5 w-5" /> 
-              Sign in with Chess24
+              Sign in with Chess24 (Coming Soon)
             </Button>
           </div>
 
@@ -114,6 +123,7 @@ export default function LoginPage() {
             className="w-full" 
             variant="secondary"
           >
+            <User className="mr-2 h-5 w-5" />
             Continue as Guest
           </Button>
           
@@ -125,3 +135,4 @@ export default function LoginPage() {
     </div>
   );
 }
+
