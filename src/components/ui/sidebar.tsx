@@ -525,39 +525,39 @@ const sidebarMenuButtonVariants = cva(
 )
 
 const SidebarMenuButton = React.forwardRef<
-  HTMLButtonElement,
-  React.ComponentProps<"button"> & {
-    asChild?: boolean 
-    isActive?: boolean
-    tooltip?: string | React.ComponentProps<typeof TooltipContent>
+  HTMLButtonElement, // Default element type
+  React.ComponentProps<"button"> & { // Base props from default element
+    asChild?: boolean; // Component's own asChild prop
+    isActive?: boolean;
+    tooltip?: string | React.ComponentProps<typeof TooltipContent>;
   } & VariantProps<typeof sidebarMenuButtonVariants>
 >(
   (
     {
-      asChild: ownAsChild = false, 
+      asChild: ownAsChild = false, // This component's decision to render Slot or DOM element
       isActive = false,
       variant = "default",
       size = "default",
       tooltip: tooltipProp,
       className,
-      // All other props passed from the caller (e.g., <Link>) are in `...rest`
-      // This includes a potential `asChild` prop from a parent <Link asChild>
-      ...rest 
+      // `...rest` contains all other props passed by the parent.
+      // If parent is `<Link asChild href="...">`, then `rest` will include `asChild=true` and `href="/..."`.
+      ...rest
     },
     ref
   ) => {
-    const Comp = ownAsChild ? Slot : "button";
+    const Comp = ownAsChild ? Slot : "button"; // If ownAsChild, render Slot, otherwise render "button"
     const { isMobile, state } = useSidebar();
 
-    // Destructure `asChild` from `rest` to separate it from other props.
-    // This `asChildFromRest` is the prop passed by a parent like `<Link asChild>`.
-    const { asChild: asChildFromRest, ...elementSpecificProps } = rest;
+    // `parentAsChildProp` is the `asChild` prop that might have been passed *from the parent component* (e.g., Link).
+    // `remainingParentProps` are all other props from the parent, excluding `parentAsChildProp`.
+    const { asChild: parentAsChildProp, ...remainingParentProps } = rest;
 
-    // If `ownAsChild` is true, `Comp` is `Slot`. `Slot` handles `asChildFromRest` correctly.
-    // So, we pass all original `rest` props (which includes `asChildFromRest`) to `Slot`.
-    // If `ownAsChild` is false, `Comp` is `"button"`. `"button"` should not receive `asChild`.
-    // In this case, we pass `elementSpecificProps`, which has `asChildFromRest` removed.
-    const propsToSpread = ownAsChild ? rest : elementSpecificProps;
+    // If `ownAsChild` is true, `Comp` is `Slot`. `Slot` should receive all original `rest` props,
+    // as `Slot` itself can handle `asChild` (which would be `parentAsChildProp` from `rest`).
+    // If `ownAsChild` is false, `Comp` is `"button"`. The `"button"` element should receive
+    // `remainingParentProps` (which has `parentAsChildProp` removed).
+    const propsToSpread = ownAsChild ? rest : remainingParentProps;
     
     const buttonElement = (
       <Comp
@@ -708,32 +708,32 @@ const SidebarMenuSubItem = React.forwardRef<
 SidebarMenuSubItem.displayName = "SidebarMenuSubItem"
 
 const SidebarMenuSubButton = React.forwardRef<
-  HTMLAnchorElement,
-  React.ComponentProps<"a"> & {
-    asChild?: boolean 
-    size?: "sm" | "md"
-    isActive?: boolean
+  HTMLAnchorElement, // Default element type
+  React.ComponentProps<"a"> & { // Base props from default element
+    asChild?: boolean; // Component's own asChild prop
+    size?: "sm" | "md";
+    isActive?: boolean;
   }
 >(({ 
-    asChild: ownAsChild = false, 
+    asChild: ownAsChild = false, // This component's decision to render Slot or DOM element
     size = "md", 
     isActive, 
     className, 
-    // All other props passed from the caller (e.g., <Link>) are in `...rest`
-    // This includes a potential `asChild` prop from a parent <Link asChild>
+    // `...rest` contains all other props passed by the parent.
+    // If parent is `<Link asChild href="...">`, then `rest` will include `asChild=true` and `href="/..."`.
     ...rest 
   }, ref) => {
-  const Comp = ownAsChild ? Slot : "a";
+  const Comp = ownAsChild ? Slot : "a"; // If ownAsChild, render Slot, otherwise render "a"
   
-  // Destructure `asChild` from `rest` to separate it from other props.
-  // This `asChildFromRest` is the prop passed by a parent like `<Link asChild>`.
-  const { asChild: asChildFromRest, ...elementSpecificProps } = rest;
+  // `parentAsChildProp` is the `asChild` prop that might have been passed *from the parent component* (e.g., Link).
+  // `remainingParentProps` are all other props from the parent, excluding `parentAsChildProp`.
+  const { asChild: parentAsChildProp, ...remainingParentProps } = rest;
 
-  // If `ownAsChild` is true, `Comp` is `Slot`. `Slot` handles `asChildFromRest` correctly.
-  // So, we pass all original `rest` props (which includes `asChildFromRest`) to `Slot`.
-  // If `ownAsChild` is false, `Comp` is `"a"`. `"a"` should not receive `asChild`.
-  // In this case, we pass `elementSpecificProps`, which has `asChildFromRest` removed.
-  const propsToSpread = ownAsChild ? rest : elementSpecificProps;
+  // If `ownAsChild` is true, `Comp` is `Slot`. `Slot` should receive all original `rest` props,
+  // as `Slot` itself can handle `asChild` (which would be `parentAsChildProp` from `rest`).
+  // If `ownAsChild` is false, `Comp` is `"a"`. The `"a"` element should receive
+  // `remainingParentProps` (which has `parentAsChildProp` removed).
+  const propsToSpread = ownAsChild ? rest : remainingParentProps;
 
   return (
     <Comp
