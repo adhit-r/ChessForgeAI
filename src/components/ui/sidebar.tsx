@@ -537,31 +537,31 @@ const sidebarMenuButtonVariants = cva(
 const SidebarMenuButton = React.forwardRef<
   HTMLButtonElement,
   React.ComponentProps<"button"> & {
-    asChild?: boolean
+    asChild?: boolean // This is the asChild prop for SidebarMenuButton itself
     isActive?: boolean
     tooltip?: string | React.ComponentProps<typeof TooltipContent>
   } & VariantProps<typeof sidebarMenuButtonVariants>
 >(
   (
     {
-      asChild: ownAsChild = false,
+      asChild: ownAsChild = false, // Renamed to avoid conflict, defaults to false
       isActive = false,
       variant = "default",
       size = "default",
       tooltip: tooltipProp,
       className,
-      ...rest
+      ...rest // 'rest' might contain 'asChild' from a parent (e.g., Link)
     },
     ref
   ) => {
     const Comp = ownAsChild ? Slot : "button";
     const { isMobile, state } = useSidebar();
 
-    // If this component is rendering a DOM element (ownAsChild is false),
-    // we need to ensure 'asChild' from parent (Link) is not passed to the DOM element.
-    // If ownAsChild is true, Comp is Slot, which can handle 'asChild' from parent.
-    const finalProps = ownAsChild ? rest : (({ asChild: _asChild, ...otherProps }) => otherProps)(rest);
-
+    // If ownAsChild is false, we are rendering a DOM element (Comp="button").
+    // We must strip any 'asChild' from 'rest' before spreading it onto the button.
+    // If ownAsChild is true, Comp is Slot, and 'rest' (which might include an 'asChild' from Link) can be passed as is,
+    // as Slot can handle it or pass it further if needed.
+    const propsForElement = ownAsChild ? rest : (({ asChild: _discard, ...otherProps }) => otherProps)(rest);
 
     const buttonElement = (
       <Comp
@@ -570,7 +570,7 @@ const SidebarMenuButton = React.forwardRef<
         data-size={size}
         data-active={isActive}
         className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
-        {...finalProps}
+        {...propsForElement} // Use the potentially filtered props
       />
     );
 
@@ -717,20 +717,23 @@ SidebarMenuSubItem.displayName = "SidebarMenuSubItem"
 const SidebarMenuSubButton = React.forwardRef<
   HTMLAnchorElement,
   React.ComponentProps<"a"> & {
-    asChild?: boolean
+    asChild?: boolean // This is the asChild prop for SidebarMenuSubButton itself
     size?: "sm" | "md"
     isActive?: boolean
   }
 >(({ 
-    asChild: ownAsChild = false, 
+    asChild: ownAsChild = false, // Renamed to avoid conflict, defaults to false
     size = "md", 
     isActive, 
     className, 
-    ...rest 
+    ...rest // 'rest' might contain 'asChild' from a parent (e.g., Link)
   }, ref) => {
   const Comp = ownAsChild ? Slot : "a";
   
-  const finalProps = ownAsChild ? rest : (({ asChild: _asChild, ...otherProps }) => otherProps)(rest);
+  // If ownAsChild is false, we are rendering a DOM element (Comp="a").
+  // We must strip any 'asChild' from 'rest' before spreading it onto the anchor.
+  // If ownAsChild is true, Comp is Slot, and 'rest' can be passed as is.
+  const propsForElement = ownAsChild ? rest : (({ asChild: _discard, ...otherProps }) => otherProps)(rest);
 
   return (
     <Comp
@@ -746,7 +749,7 @@ const SidebarMenuSubButton = React.forwardRef<
         "group-data-[collapsible=icon]:hidden",
         className
       )}
-      {...finalProps}
+      {...propsForElement} // Use the potentially filtered props
     />
   )
 })
@@ -778,3 +781,6 @@ export {
   SidebarTrigger,
   useSidebar,
 }
+
+
+    
