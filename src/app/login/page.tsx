@@ -20,6 +20,7 @@ function generateRandomString(len: number): string {
   if (typeof window !== 'undefined' && window.crypto) {
     window.crypto.getRandomValues(arr);
   } else {
+    // Fallback for environments without window.crypto (less secure)
     for (let i = 0; i < arr.length; i++) {
       arr[i] = Math.floor(Math.random() * 256);
     }
@@ -33,6 +34,10 @@ async function sha256(plain: string): Promise<ArrayBuffer> {
   if (typeof window !== 'undefined' && window.crypto?.subtle) {
     return window.crypto.subtle.digest('SHA-256', data);
   }
+  // Fallback for environments without window.crypto.subtle (e.g. Node.js for testing, or very old browsers)
+  // This will likely only be hit if running in a non-browser environment unexpectedly or very old browser.
+  // For server-side operations, native crypto module is preferred.
+  console.warn("SHA256: window.crypto.subtle not available, using fallback (less ideal for client-side).");
   const { createHash } = await import('crypto');
   return createHash('sha256').update(data).digest().buffer;
 }
@@ -58,6 +63,7 @@ export default function LoginPage() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const [lichessRedirectUri, setLichessRedirectUri] = useState('');
+  // Set to true to pause URL cleanup for Lichess callback debugging, set to false for normal operation
   const [debugLichessCallback, setDebugLichessCallback] = useState(true); 
 
   useEffect(() => {
@@ -65,43 +71,43 @@ export default function LoginPage() {
       const currentOrigin = window.location.origin;
       const redirectUri = `${currentOrigin}/login`;
       setLichessRedirectUri(redirectUri);
-      console.log("Lichess Redirect URI set to:", redirectUri);
+      console.log("Lichess Login: Lichess Redirect URI set to:", redirectUri);
     }
   }, []);
 
   useEffect(() => {
     const authCode = searchParams.get('code');
-    const state = searchParams.get('state'); 
+    const state = searchParams.get('state'); // Lichess doesn't use state in PKCE from their examples, but good to log if present
     
-    console.log("Login page useEffect triggered. Auth Code:", authCode, "State:", state, "Lichess Redirect URI ready:", !!lichessRedirectUri);
+    console.log("Lichess Login: Login page useEffect triggered. Auth Code:", authCode, "State:", state, "Lichess Redirect URI ready:", !!lichessRedirectUri);
 
     if (authCode && typeof window !== 'undefined' && lichessRedirectUri) {
-      console.log("Attempting to process Lichess auth code...");
+      console.log("Lichess Login: Attempting to process Lichess auth code...");
       const codeVerifier = sessionStorage.getItem('lichessCodeVerifier');
       
       if (!codeVerifier) {
-        console.error("Lichess Login Error: Code verifier not found in sessionStorage.");
+        console.error("Lichess Login Error: Code verifier not found in sessionStorage. This can happen if you refreshed the /login page after Lichess redirected, or if sessionStorage is disabled/cleared.");
         toast({ title: "Lichess Login Error", description: "Code verifier missing. Please try logging in again.", variant: "destructive" });
         if (!debugLichessCallback) {
           router.replace('/login', undefined); 
         }
         return;
       }
-      console.log("Found Lichess code verifier:", codeVerifier);
+      console.log("Lichess Login: Found Lichess code verifier:", codeVerifier);
 
       const exchangeCodeForToken = async (code: string, verifier: string) => {
-        console.log("Exchanging Lichess code for token with code:", code, "verifier:", verifier, "redirect_uri:", lichessRedirectUri);
+        console.log("Lichess Login: Exchanging Lichess code for token with code:", code, "verifier:", verifier, "redirect_uri:", lichessRedirectUri, "client_id:", LICHESS_CLIENT_ID);
         try {
           if (!LICHESS_CLIENT_ID) {
-            console.error("Lichess Configuration Error: Client ID is not configured.");
-            toast({ title: "Lichess Configuration Error", description: "Lichess Client ID is missing. Please set NEXT_PUBLIC_LICHESS_CLIENT_ID.", variant: "destructive" });
+            console.error("Lichess Configuration Error: Client ID (NEXT_PUBLIC_LICHESS_CLIENT_ID) is not configured in .env file.");
+            toast({ title: "Lichess Configuration Error", description: "Lichess Client ID is missing. Please set NEXT_PUBLIC_LICHESS_CLIENT_ID in your .env file.", variant: "destructive" });
             return;
           }
           const params = new URLSearchParams();
           params.append('grant_type', 'authorization_code');
           params.append('code', code);
-          params.append('redirect_uri', lichessRedirectUri);
-          params.append('client_id', LICHESS_CLIENT_ID); // Lichess client ID IS required for PKCE
+          params.append('redirect_uri', lichessRedirectUri); // This MUST match what Lichess has for your client & what you sent.
+          params.append('client_id', LICHESS_CLIENT_ID);
           params.append('code_verifier', verifier);
 
           const response = await fetch('https://lichess.org/api/token', {
@@ -118,21 +124,29 @@ export default function LoginPage() {
           }
 
           if (response.ok && tokenData.access_token) {
-            console.log("Lichess Access Token (PKCE Flow):", tokenData.access_token);
+            console.log("Lichess Login: Lichess Access Token (PKCE Flow) received:", tokenData.access_token);
             toast({ 
               title: "Lichess Token Received (Client-Side)", 
-              description: "Lichess token obtained. IMPORTANT: Next, this token must be sent to a Firebase Cloud Function to exchange it for a Firebase Custom Token. Only then can you sign into Firebase and be redirected to the dashboard.",
+              description: "Lichess token obtained. IMPORTANT: Next, this token must be sent to a Firebase Cloud Function to exchange it for a Firebase Custom Token. Only after signing in with that custom token will you be redirected to the dashboard. This part requires backend development.",
               duration: 20000, 
             });
             // TODO: Send tokenData.access_token to your Firebase Cloud Function.
-            // On success, call: await signInWithCustomToken(auth, firebaseCustomToken); router.push('/');
+            // On success from Cloud Function (getting firebaseCustomToken): 
+            // try {
+            //   await signInWithCustomToken(auth, firebaseCustomToken);
+            //   toast({ title: "Signed In with Lichess via Firebase", description: "Successfully signed into Firebase."});
+            //   router.push('/');
+            // } catch (firebaseError) {
+            //   console.error("Firebase Custom Token Sign-In Error:", firebaseError);
+            //   toast({ title: "Firebase Sign-In Error", description: "Could not sign in with Lichess custom token.", variant: "destructive" });
+            // }
           } else {
-            console.error("Lichess Token Exchange Error:", tokenData);
-            toast({ title: "Lichess Token Error", description: `Failed to get Lichess token. ${tokenData.error_description || tokenData.error || 'Unknown error.'}`, variant: "destructive" });
+            console.error("Lichess Login: Lichess Token Exchange Error. Status:", response.status, "Response Data:", tokenData);
+            toast({ title: "Lichess Token Error", description: `Failed to get Lichess token. ${tokenData.error_description || tokenData.error || 'Unknown error. Check console for details.'}`, variant: "destructive" });
           }
         } catch (error) {
-          console.error("Lichess token exchange critical error:", error);
-          toast({ title: "Lichess Login Error", description: "Could not exchange code for token. " + (error instanceof Error ? error.message : String(error)), variant: "destructive" });
+          console.error("Lichess Login: Lichess token exchange critical error:", error);
+          toast({ title: "Lichess Login Network/Fetch Error", description: "Could not exchange code for token. " + (error instanceof Error ? error.message : String(error)), variant: "destructive" });
           if (!debugLichessCallback) {
              sessionStorage.removeItem('lichessCodeVerifier'); 
              router.replace('/login', undefined); 
@@ -142,7 +156,7 @@ export default function LoginPage() {
 
       exchangeCodeForToken(authCode, codeVerifier);
     } else if (authCode && !lichessRedirectUri) {
-        console.warn("Lichess auth code present, but redirect URI not yet initialized.");
+        console.warn("Lichess Login: Lichess auth code present, but redirect URI not yet initialized in state. This can happen on fast re-renders. If login fails, try again.");
     }
   }, [searchParams, router, toast, lichessRedirectUri, debugLichessCallback]);
 
@@ -157,9 +171,9 @@ export default function LoginPage() {
       } catch (error: any) {
         console.error("Google Sign-In Error:", error);
         if (error.code === 'auth/unauthorized-domain') {
-          toast({ title: "Google Sign-In Error", description: "This domain is not authorized. Please check your Firebase project's 'Authorized domains' settings.", variant: "destructive", duration: 10000});
+          toast({ title: "Google Sign-In Error", description: "This domain is not authorized. Please check your Firebase project's 'Authorized domains' settings in the Firebase Console.", variant: "destructive", duration: 10000});
         } else if (error.code === 'auth/popup-closed-by-user') {
-          toast({ title: "Google Sign-In Error", description: "Popup closed by user or blocked. Check pop-up blockers, third-party cookie settings, or browser extensions. Ensure this domain is authorized in Firebase.", variant: "destructive", duration: 15000 });
+          toast({ title: "Google Sign-In Error", description: "Popup closed by user or blocked. Check pop-up blockers, third-party cookie settings, browser extensions, or if the domain is authorized in Firebase Console.", variant: "destructive", duration: 15000 });
         } else {
           toast({ title: "Google Sign-In Error", description: error.message || "Could not sign in with Google.", variant: "destructive", duration: 10000});
         }
@@ -167,22 +181,22 @@ export default function LoginPage() {
     } else if (providerName === 'Lichess') {
       if (!LICHESS_CLIENT_ID) {
          toast({ title: "Lichess Client ID Missing", description: "Please configure NEXT_PUBLIC_LICHESS_CLIENT_ID in your .env file.", variant: "destructive" });
-         console.error("Lichess Login Error: NEXT_PUBLIC_LICHESS_CLIENT_ID is not set.");
+         console.error("Lichess Login Error: NEXT_PUBLIC_LICHESS_CLIENT_ID is not set in .env file.");
          return;
       }
       if (!lichessRedirectUri) {
         toast({ title: "Lichess Login Setup Error", description: "Redirect URI not ready. Please try again in a moment.", variant: "destructive" });
-        console.error("Lichess login attempted but lichessRedirectUri is not set:", lichessRedirectUri);
+        console.error("Lichess Login: Lichess login attempted but lichessRedirectUri is not set in state:", lichessRedirectUri);
         return;
       }
       try {
         const codeVerifier = generateRandomString(128);
         sessionStorage.setItem('lichessCodeVerifier', codeVerifier);
-        console.log("Generated Lichess code verifier:", codeVerifier);
+        console.log("Lichess Login: Generated Lichess code verifier and stored in sessionStorage:", codeVerifier);
         
         const hashed = await sha256(codeVerifier);
         const codeChallenge = base64urlencode(hashed);
-        console.log("Generated Lichess code challenge:", codeChallenge);
+        console.log("Lichess Login: Generated Lichess code challenge:", codeChallenge);
 
         const authUrl = new URL('https://lichess.org/oauth');
         authUrl.searchParams.set('response_type', 'code');
@@ -191,11 +205,13 @@ export default function LoginPage() {
         authUrl.searchParams.set('scope', LICHESS_SCOPES);
         authUrl.searchParams.set('code_challenge_method', 'S256');
         authUrl.searchParams.set('code_challenge', codeChallenge);
+        // Lichess doesn't typically use 'state' for PKCE but if needed:
+        // authUrl.searchParams.set('state', generateRandomString(32)); 
         
-        console.log("Redirecting to Lichess auth URL:", authUrl.toString());
+        console.log("Lichess Login: Redirecting to Lichess auth URL:", authUrl.toString());
         window.location.href = authUrl.toString();
       } catch (error) {
-        console.error("Lichess PKCE setup error:", error);
+        console.error("Lichess Login: Lichess PKCE setup error:", error);
         toast({ title: "Lichess Login Setup Error", description: "Could not initiate Lichess login. " + (error instanceof Error ? error.message : String(error)), variant: "destructive" });
       }
     }
@@ -208,7 +224,8 @@ export default function LoginPage() {
       if (userCredential.user) {
         router.push('/'); 
       } else {
-        toast({ title: "Guest Access Issue", description: "Could not complete guest sign-in fully.", variant: "destructive"});
+        // This case should be rare with signInAnonymously if it doesn't throw
+        toast({ title: "Guest Access Issue", description: "Could not complete guest sign-in fully, user object not found.", variant: "destructive"});
       }
     } catch (error: any) {
       console.error("Anonymous Sign-In Error:", error);
@@ -296,4 +313,3 @@ export default function LoginPage() {
   );
 }
 
-    

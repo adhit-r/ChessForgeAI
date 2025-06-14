@@ -15,9 +15,9 @@ const firebaseConfig = {
 
 // For debugging API key issues
 if (typeof window !== 'undefined') {
-  console.log("Attempting to use Firebase API Key:", process.env.NEXT_PUBLIC_FIREBASE_API_KEY ? "Key Present (see next log)" : "Key NOT Present or Empty");
+  console.log("Firebase Init: Attempting to use Firebase API Key:", process.env.NEXT_PUBLIC_FIREBASE_API_KEY ? "Key Present (see next log)" : "Key NOT Present or Empty");
   if (process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
-    console.log("Firebase API Key value:", process.env.NEXT_PUBLIC_FIREBASE_API_KEY);
+    console.log("Firebase Init: API Key value being used:", process.env.NEXT_PUBLIC_FIREBASE_API_KEY);
   }
 }
 
@@ -26,13 +26,17 @@ if (typeof window !== 'undefined') {
 let app: FirebaseApp;
 if (!getApps().length) {
   app = initializeApp(firebaseConfig);
+  if (typeof window !== 'undefined') {
+    console.log("Firebase Init: Firebase App Initialized.");
+  }
 } else {
   app = getApp();
+  if (typeof window !== 'undefined') {
+    console.log("Firebase Init: Firebase App already exists, getting instance.");
+  }
 }
 
 const auth: Auth = getAuth(app);
 // const db = getFirestore(app); // Uncomment for Firestore
 
 export { app, auth /*, db */ };
-
-    
