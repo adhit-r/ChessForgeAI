@@ -17,29 +17,18 @@ import { Toaster } from "@/components/ui/toaster";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { Bot, Github, Settings, LogOut, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { auth } from '@/lib/firebase'; // Import Firebase auth
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { useToast } from "@/hooks/use-toast";
 
-// Placeholder for actual auth check
-// In a real app, integrate Firebase Auth here.
-// For example:
-// import { getAuth, onAuthStateChanged } from "firebase/auth";
-// import firebaseApp from "@/lib/firebase"; // Your firebase config
-// const auth = getAuth(firebaseApp);
-const checkAuthStatus = async (): Promise<boolean> => {
-  // console.log("Checking auth status...");
-  // return new Promise(resolve => {
-  //   const unsubscribe = onAuthStateChanged(auth, (user) => {
-  //     unsubscribe();
-  //     console.log("Auth state changed, user:", user);
-  //     resolve(!!user);
-  //   });
-  // });
-  
-  // Simulate an asynchronous authentication check
-  await new Promise(resolve => setTimeout(resolve, 500));
-  // For demonstration, we'll assume the user is not authenticated.
-  // To test authenticated flow, change this to: return true;
-  // console.log("Simulated auth status: false");
-  return false; 
+
+const checkAuthStatus = (): Promise<User | null> => {
+  return new Promise(resolve => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      unsubscribe();
+      resolve(user);
+    });
+  });
 };
 
 
@@ -49,13 +38,16 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null); // null: loading, true: authenticated, false: unauthenticated
+  const { toast } = useToast();
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
     const verifyAuth = async () => {
-      const authStatus = await checkAuthStatus();
-      setIsAuthenticated(authStatus);
-      if (!authStatus) {
+      const user = await checkAuthStatus();
+      if (user) {
+        setIsAuthenticated(true);
+      } else {
+        setIsAuthenticated(false);
         router.push('/login');
       }
     };
@@ -63,18 +55,15 @@ export default function AppLayout({
   }, [router]);
 
   const handleSignOut = async () => {
-    // In a real app, call Firebase sign out:
-    // try {
-    //   await auth.signOut();
-    //   toast({ title: "Signed Out", description: "You have been successfully signed out." });
-    // } catch (error) {
-    //   console.error("Sign out error", error);
-    //   toast({ title: "Sign Out Error", description: "Could not sign out.", variant: "destructive" });
-    // }
-    alert("Simulated Sign Out. Implement actual sign out logic.");
-    // Regardless of actual sign out success/failure for simulation, clear auth state and redirect
-    setIsAuthenticated(false); // Simulate auth state change
-    router.push('/login');
+    try {
+      await auth.signOut();
+      toast({ title: "Signed Out", description: "You have been successfully signed out." });
+      setIsAuthenticated(false); // Update local auth state
+      router.push('/login');
+    } catch (error) {
+      console.error("Sign out error", error);
+      toast({ title: "Sign Out Error", description: "Could not sign out.", variant: "destructive" });
+    }
   };
 
   if (isAuthenticated === null) {
@@ -87,8 +76,8 @@ export default function AppLayout({
   }
 
   if (!isAuthenticated) {
-    // This state is usually brief as router.push should navigate away.
-    // You can show a "Redirecting..." message or simply null if useEffect handles it quickly.
+    // This state should ideally be brief as router.push('/login') will navigate away.
+    // If checkAuthStatus correctly pushes to /login, this might not even be seen often.
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />

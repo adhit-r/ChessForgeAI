@@ -2,24 +2,45 @@
 "use client";
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Bot, LogIn } from 'lucide-react'; // Assuming LogIn icon for general login
+import { Bot, LogIn } from 'lucide-react';
+import { auth } from '@/lib/firebase'; // Import Firebase auth
+import { GoogleAuthProvider, signInWithPopup, UserCredential } from 'firebase/auth';
+import { useToast } from "@/hooks/use-toast";
+
 // You might want specific icons for Google, Lichess, etc.
 // import { GoogleIcon, LichessIcon, ChesscomIcon, Chess24Icon } from '@/components/icons'; // Example
 
 export default function LoginPage() {
-  const handleLogin = (provider: string) => {
-    // Placeholder for actual login logic
-    // e.g., firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider());
-    alert(`Login with ${provider} clicked. Implement actual authentication.`);
-    // On successful login, you'd typically redirect to the app's dashboard
-    // window.location.href = '/'; 
+  const router = useRouter();
+  const { toast } = useToast();
+
+  const handleLogin = async (providerName: string) => {
+    if (providerName === 'Google') {
+      const provider = new GoogleAuthProvider();
+      try {
+        const result: UserCredential = await signInWithPopup(auth, provider);
+        // const credential = GoogleAuthProvider.credentialFromResult(result);
+        // const token = credential?.accessToken;
+        // const user = result.user;
+        toast({ title: "Signed In", description: `Welcome, ${result.user.displayName || result.user.email}!`});
+        router.push('/'); // Redirect to dashboard on successful login
+      } catch (error: any) {
+        console.error("Google Sign-In Error:", error);
+        toast({ title: "Sign-In Error", description: error.message, variant: "destructive"});
+      }
+    } else {
+      // Placeholder for other providers
+      alert(`Login with ${providerName} is not yet implemented. This requires custom OAuth setup with Firebase and ${providerName}.`);
+    }
   };
 
   const handleGuestAccess = () => {
-    alert("Guest access clicked. Implement guest session/redirect.");
-    // window.location.href = '/'; // Or a specific guest dashboard
+    alert("Guest access clicked. This feature is not yet implemented.");
+    // In a real app, you might set a guest session and redirect
+    // router.push('/'); 
   };
 
   return (
