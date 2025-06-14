@@ -63,17 +63,15 @@ const navItems: NavItem[] = [
     items: [
       {
         title: "Puzzles",
-        href: "/learn/puzzles", // Placeholder, will need a page
+        href: "/learn/puzzles", 
         icon: <Puzzle size={16} />,
         description: "Solve tactical puzzles.",
-        disabled: true, // Disable until page is created
       },
       {
         title: "Openings",
-        href: "/learn/openings", // Placeholder, will need a page
+        href: "/learn/openings",
         icon: <BrainCircuit size={16} />,
         description: "Study chess openings.",
-        disabled: true, // Disable until page is created
       }
     ]
   }

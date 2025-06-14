@@ -15,19 +15,20 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Lightbulb, UploadCloud, Loader2, AlertCircle, ExternalLink, CheckCircle } from 'lucide-react';
+import { FileText, Lightbulb, UploadCloud, Loader2, AlertCircle, ExternalLink, CheckCircle, UserSearch } from 'lucide-react';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 
 import { analyzeChessGame, AnalyzeChessGameOutput } from '@/ai/flows/analyze-chess-game';
 import { generateImprovementTips, GenerateImprovementTipsOutput } from '@/ai/flows/generate-improvement-tips';
+import { fetchGameHistory, FetchGameHistoryInput, FetchGameHistoryOutput } from '@/ai/flows/fetch-game-history';
 
 const pgnImportSchema = z.object({
   pgn: z.string().min(10, { message: "PGN data seems too short." }).max(20000, { message: "PGN data is too long." }),
 });
 
 const usernameImportSchema = z.object({
-  platform: z.enum(["lichess", "chesscom"], { required_error: "Please select a platform." }),
+  platform: z.enum(["lichess", "chesscom", "chess24"], { required_error: "Please select a platform." }),
   username: z.string().min(2, { message: "Username must be at least 2 characters." }),
 });
 
@@ -50,14 +51,11 @@ export default function AnalysisPage() {
     resolver: zodResolver(usernameImportSchema),
   });
 
-  const handlePgnSubmit: SubmitHandler<PgnImportFormValues> = async (data) => {
-    setIsLoading(true);
-    setAnalysisResult(null);
-    setImprovementTips(null);
+  const processAnalysis = async (pgnData: string, source: string) => {
     try {
-      const analysis = await analyzeChessGame({ pgn: data.pgn });
+      const analysis = await analyzeChessGame({ pgn: pgnData });
       setAnalysisResult(analysis);
-      toast({ title: "Game Analyzed", description: "Successfully analyzed the PGN data.", variant: "default" });
+      toast({ title: `Game from ${source} Analyzed`, description: "Successfully analyzed the game.", variant: "default" });
 
       if (analysis?.analysis) {
         const tips = await generateImprovementTips({ gameAnalysis: analysis.analysis });
@@ -65,24 +63,41 @@ export default function AnalysisPage() {
         toast({ title: "Tips Generated", description: "Improvement suggestions are ready.", variant: "default" });
       }
     } catch (error) {
-      console.error("Error analyzing PGN:", error);
-      toast({ title: "Analysis Error", description: "Could not analyze PGN. " + (error instanceof Error ? error.message : String(error)), variant: "destructive" });
-    } finally {
-      setIsLoading(false);
+      console.error(`Error analyzing game from ${source}:`, error);
+      toast({ title: "Analysis Error", description: `Could not analyze the game from ${source}. ` + (error instanceof Error ? error.message : String(error)), variant: "destructive" });
     }
+  };
+
+  const handlePgnSubmit: SubmitHandler<PgnImportFormValues> = async (data) => {
+    setIsLoading(true);
+    setAnalysisResult(null);
+    setImprovementTips(null);
+    await processAnalysis(data.pgn, "PGN Upload");
+    setIsLoading(false);
   };
 
   const handleUsernameSubmit: SubmitHandler<UsernameImportFormValues> = async (data) => {
     setIsLoading(true);
     setAnalysisResult(null);
     setImprovementTips(null);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setIsLoading(false);
-    toast({
-      title: "Feature In Development",
-      description: `Importing games for ${data.username} from ${data.platform} is not yet implemented. Please use PGN upload.`,
-      variant: "default",
-    });
+    try {
+      toast({ title: "Fetching Games...", description: `Attempting to fetch games for ${data.username} from ${data.platform}.`, variant: "default"});
+      const historyOutput = await fetchGameHistory({ platform: data.platform as "lichess" | "chesscom" | "chess24", username: data.username });
+
+      if (historyOutput.games && historyOutput.games.length > 0) {
+        toast({ title: "Games Fetched!", description: `Found ${historyOutput.games.length} games. Analyzing the first one.`, variant: "default"});
+        // For this iteration, analyze the first game.
+        // In a real app, you might let the user choose or process multiple.
+        await processAnalysis(historyOutput.games[0], `${data.platform} (${data.username})`);
+      } else {
+        toast({ title: "No Games Found", description: `No games found for ${data.username} on ${data.platform}, or the platform integration is pending.`, variant: "default" });
+      }
+    } catch (error) {
+      console.error("Error fetching/analyzing game history:", error);
+      toast({ title: "Import Error", description: "Could not fetch or analyze game history. " + (error instanceof Error ? error.message : String(error)), variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -97,8 +112,8 @@ export default function AnalysisPage() {
         <TabsContent value="username">
           <Card className="bg-card rounded-xl shadow-soft-ui">
             <CardHeader>
-              <CardTitle>Import from Chess.com or Lichess</CardTitle>
-              <CardDescription>Enter your username to import recent games (feature in development).</CardDescription>
+              <CardTitle>Import from Chess.com, Lichess, or Chess24</CardTitle>
+              <CardDescription>Enter your username to import recent games. (Mock data for now)</CardDescription>
             </CardHeader>
             <CardContent>
               <Form {...usernameForm}>
@@ -118,6 +133,7 @@ export default function AnalysisPage() {
                           <SelectContent>
                             <SelectItem value="lichess">Lichess.org</SelectItem>
                             <SelectItem value="chesscom">Chess.com</SelectItem>
+                            <SelectItem value="chess24">Chess24</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -138,8 +154,8 @@ export default function AnalysisPage() {
                     )}
                   />
                   <Button type="submit" disabled={isLoading} className="w-full md:w-auto">
-                    {isLoading && activeTab === "username" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UploadCloud className="mr-2 h-4 w-4" />}
-                    Import Games
+                    {isLoading && activeTab === "username" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserSearch className="mr-2 h-4 w-4" />}
+                    Import & Analyze
                   </Button>
                 </form>
               </Form>
@@ -184,14 +200,14 @@ export default function AnalysisPage() {
       </Tabs>
 
       {isLoading && (
-        <div className="flex flex-col items-center justify-center text-center p-8 space-y-2">
+        <div className="flex flex-col items-center justify-center text-center p-8 space-y-2 mt-8">
           <Loader2 className="h-12 w-12 animate-spin text-primary" />
-          <p className="text-lg font-medium">Analyzing your game...</p>
-          <p className="text-muted-foreground">This might take a few moments.</p>
+          <p className="text-lg font-medium">Processing your request...</p>
+          <p className="text-muted-foreground">Fetching games and generating insights. This might take a few moments.</p>
         </div>
       )}
 
-      {analysisResult && (
+      {analysisResult && !isLoading && (
         <Card className="bg-card rounded-xl shadow-soft-ui mt-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><CheckCircle className="text-green-500" /> Game Analysis Complete</CardTitle>
@@ -209,7 +225,7 @@ export default function AnalysisPage() {
         </Card>
       )}
 
-      {improvementTips && improvementTips.tips.length > 0 && (
+      {improvementTips && improvementTips.tips.length > 0 && !isLoading && (
         <Card className="bg-card rounded-xl shadow-soft-ui mt-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Lightbulb className="text-yellow-400" /> Improvement Suggestions</CardTitle>
