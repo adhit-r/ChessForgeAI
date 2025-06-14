@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,7 +10,7 @@ import { auth } from '@/lib/firebase';
 import { GoogleAuthProvider, signInWithPopup, type UserCredential, signInAnonymously } from 'firebase/auth';
 import { useToast } from "@/hooks/use-toast";
 
-// Helper for PKCE
+// PKCE Helper Functions
 function dec2hex(dec: number) {
   return ('0' + dec.toString(16)).slice(-2);
 }
@@ -20,7 +20,6 @@ function generateRandomString(len: number) {
   if (typeof window !== 'undefined') {
     window.crypto.getRandomValues(arr);
   } else {
-    // Fallback for non-browser environments (less secure, for initial load/SSR if ever needed)
     for (let i = 0; i < arr.length; i++) {
       arr[i] = Math.floor(Math.random() * 256);
     }
@@ -34,9 +33,6 @@ async function sha256(plain: string) {
   if (typeof window !== 'undefined' && window.crypto?.subtle) {
     return window.crypto.subtle.digest('SHA-256', data);
   }
-  // Basic polyfill/fallback for Node.js or environments without crypto.subtle for hashing
-  // THIS IS NOT FOR PRODUCTION USE on client if window.crypto is unavailable
-  // For Node.js, you'd use the 'crypto' module. This is a conceptual placeholder.
   const { createHash } = await import('crypto');
   return createHash('sha256').update(data).digest();
 }
@@ -54,18 +50,20 @@ function base64urlencode(a: ArrayBuffer) {
     .replace(/=+$/, "");
 }
 
-
-const LICHESS_CLIENT_ID = process.env.NEXT_PUBLIC_LICHESS_CLIENT_ID || "chessforgeai-dev"; 
-const LICHESS_SCOPES = "preference:read game:read"; // Adjust scopes as needed
+// Lichess requires a Client ID even for PKCE to identify your application.
+// It doesn't require a Client Secret on the client for PKCE.
+const LICHESS_CLIENT_ID = process.env.NEXT_PUBLIC_LICHESS_CLIENT_ID; 
+const LICHESS_SCOPES = "preference:read game:read";
 
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
-  const [lichessRedirectUri, setLichessRedirectUri] = React.useState('');
+  const [lichessRedirectUri, setLichessRedirectUri] = useState('');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      // Dynamically set redirect URI based on current origin
       setLichessRedirectUri(`${window.location.origin}/login`);
     }
   }, []);
@@ -73,18 +71,23 @@ export default function LoginPage() {
 
   useEffect(() => {
     const authCode = searchParams.get('code');
-    const state = searchParams.get('state'); // Lichess might send 'state' for CSRF protection
+    // Lichess might send 'state' for CSRF protection, though not strictly used in basic PKCE.
+    // const state = searchParams.get('state'); 
 
     if (authCode && typeof window !== 'undefined' && lichessRedirectUri) {
       const codeVerifier = sessionStorage.getItem('lichessCodeVerifier');
       if (!codeVerifier) {
         toast({ title: "Lichess Login Error", description: "Code verifier not found. Please try logging in again.", variant: "destructive" });
-        router.replace('/login', undefined); // Remove query params
+        router.replace('/login', undefined); 
         return;
       }
 
       const exchangeCodeForToken = async (code: string, verifier: string) => {
         try {
+          if (!LICHESS_CLIENT_ID) {
+            toast({ title: "Lichess Configuration Error", description: "Lichess Client ID is not configured.", variant: "destructive" });
+            return;
+          }
           const params = new URLSearchParams();
           params.append('grant_type', 'authorization_code');
           params.append('code', code);
@@ -100,16 +103,16 @@ export default function LoginPage() {
 
           const tokenData = await response.json();
           sessionStorage.removeItem('lichessCodeVerifier');
-          router.replace('/login', undefined); // Clean URL
+          router.replace('/login', undefined); 
 
           if (response.ok && tokenData.access_token) {
-            console.log("Lichess Access Token:", tokenData.access_token);
+            console.log("Lichess Access Token (PKCE):", tokenData.access_token);
             toast({ 
-              title: "Lichess Token Received!", 
-              description: "Next step: Send this token to a Firebase Cloud Function to get a Firebase Custom Token, then sign in to Firebase and redirect to dashboard.",
-              duration: 9000, // Keep toast longer
+              title: "Lichess Token Received (PKCE)!", 
+              description: "Lichess authentication successful. Next: Exchange this for a Firebase Custom Token via a Cloud Function to complete Firebase sign-in and redirect to dashboard.",
+              duration: 12000, 
             });
-            // TODO: Implement Firebase Cloud Function call here.
+            // TODO: 
             // 1. Send tokenData.access_token to your Firebase Cloud Function.
             // 2. Cloud Function verifies Lichess token, gets Lichess user ID, mints Firebase Custom Token.
             // 3. Cloud Function returns Firebase Custom Token to client.
@@ -143,7 +146,7 @@ export default function LoginPage() {
         toast({ title: "Sign-In Error", description: error.message, variant: "destructive"});
       }
     } else if (providerName === 'Lichess') {
-      if (!LICHESS_CLIENT_ID || LICHESS_CLIENT_ID === "chessforgeai-dev") {
+      if (!LICHESS_CLIENT_ID) {
          toast({ title: "Lichess Client ID Missing", description: "Please configure NEXT_PUBLIC_LICHESS_CLIENT_ID in your .env file.", variant: "destructive" });
          return;
       }
@@ -173,7 +176,7 @@ export default function LoginPage() {
       }
 
     } else {
-      toast({ title: `${providerName} Login`, description: `Login with ${providerName} is coming soon!`, variant: "default"});
+      // Placeholder for other providers
     }
   };
 
@@ -222,7 +225,6 @@ export default function LoginPage() {
               Sign in with Lichess.org
             </Button>
             <Button 
-              onClick={() => handleLogin('Chess.com')} 
               className="w-full"
               variant="outline"
               disabled 
@@ -231,7 +233,6 @@ export default function LoginPage() {
               Sign in with Chess.com (Coming Soon)
             </Button>
              <Button 
-              onClick={() => handleLogin('Chess24')} 
               className="w-full"
               variant="outline"
               disabled 
