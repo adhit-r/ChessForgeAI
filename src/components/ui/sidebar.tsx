@@ -540,6 +540,8 @@ const SidebarMenuButton = React.forwardRef<
       size = "default",
       tooltip: tooltipProp,
       className,
+      // All other props passed from the caller (e.g., <Link>) are in `...rest`
+      // This includes a potential `asChild` prop from a parent <Link asChild>
       ...rest 
     },
     ref
@@ -547,10 +549,15 @@ const SidebarMenuButton = React.forwardRef<
     const Comp = ownAsChild ? Slot : "button";
     const { isMobile, state } = useSidebar();
 
-    let finalProps = { ...rest };
-    if (!ownAsChild && typeof finalProps.asChild !== 'undefined') {
-      delete finalProps.asChild;
-    }
+    // Destructure `asChild` from `rest` to separate it from other props.
+    // This `asChildFromRest` is the prop passed by a parent like `<Link asChild>`.
+    const { asChild: asChildFromRest, ...elementSpecificProps } = rest;
+
+    // If `ownAsChild` is true, `Comp` is `Slot`. `Slot` handles `asChildFromRest` correctly.
+    // So, we pass all original `rest` props (which includes `asChildFromRest`) to `Slot`.
+    // If `ownAsChild` is false, `Comp` is `"button"`. `"button"` should not receive `asChild`.
+    // In this case, we pass `elementSpecificProps`, which has `asChildFromRest` removed.
+    const propsToSpread = ownAsChild ? rest : elementSpecificProps;
     
     const buttonElement = (
       <Comp
@@ -559,7 +566,7 @@ const SidebarMenuButton = React.forwardRef<
         data-size={size}
         data-active={isActive}
         className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
-        {...finalProps} 
+        {...propsToSpread} 
       />
     );
 
@@ -712,14 +719,21 @@ const SidebarMenuSubButton = React.forwardRef<
     size = "md", 
     isActive, 
     className, 
+    // All other props passed from the caller (e.g., <Link>) are in `...rest`
+    // This includes a potential `asChild` prop from a parent <Link asChild>
     ...rest 
   }, ref) => {
   const Comp = ownAsChild ? Slot : "a";
   
-  let finalProps = { ...rest };
-  if (!ownAsChild && typeof finalProps.asChild !== 'undefined') {
-    delete finalProps.asChild;
-  }
+  // Destructure `asChild` from `rest` to separate it from other props.
+  // This `asChildFromRest` is the prop passed by a parent like `<Link asChild>`.
+  const { asChild: asChildFromRest, ...elementSpecificProps } = rest;
+
+  // If `ownAsChild` is true, `Comp` is `Slot`. `Slot` handles `asChildFromRest` correctly.
+  // So, we pass all original `rest` props (which includes `asChildFromRest`) to `Slot`.
+  // If `ownAsChild` is false, `Comp` is `"a"`. `"a"` should not receive `asChild`.
+  // In this case, we pass `elementSpecificProps`, which has `asChildFromRest` removed.
+  const propsToSpread = ownAsChild ? rest : elementSpecificProps;
 
   return (
     <Comp
@@ -735,7 +749,7 @@ const SidebarMenuSubButton = React.forwardRef<
         "group-data-[collapsible=icon]:hidden",
         className
       )}
-      {...finalProps} 
+      {...propsToSpread} 
     />
   )
 })
@@ -767,3 +781,4 @@ export {
   SidebarTrigger,
   useSidebar,
 }
+
