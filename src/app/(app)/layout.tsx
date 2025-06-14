@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -13,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/toaster";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
-import { Bot, Github, Settings } from 'lucide-react';
+import { Bot, Github, Settings, LogOut } from 'lucide-react';
 import Link from 'next/link';
 
 export default function AppLayout({
@@ -21,6 +22,15 @@ export default function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Placeholder function for sign out
+  const handleSignOut = () => {
+    // In a real app, you'd call your authentication service's sign out method here
+    // For example, if using Firebase: firebase.auth().signOut();
+    // Then redirect to login page: router.push('/login');
+    alert("Simulated Sign Out. Implement actual sign out logic.");
+    // Potentially redirect: window.location.href = '/login';
+  };
+
   return (
     <SidebarProvider defaultOpen={true}>
       <Sidebar side="left" variant="inset" collapsible="icon" className="border-r-0">
@@ -45,7 +55,7 @@ export default function AppLayout({
               <span className="group-data-[collapsible=icon]:hidden">Settings</span>
             </Button>
             <a
-              href="https://github.com" // Replace with actual project link
+              href="https://github.com/your-repo/chessforgeai" 
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center justify-start group-data-[collapsible=icon]:justify-center w-full h-9 px-3 py-2 text-sm font-medium rounded-md text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
@@ -54,6 +64,15 @@ export default function AppLayout({
               <Github size={18} className="mr-2 group-data-[collapsible=icon]:mr-0" />
               <span className="group-data-[collapsible=icon]:hidden">GitHub</span>
             </a>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="w-full justify-start group-data-[collapsible=icon]:justify-center text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              onClick={handleSignOut}
+            >
+              <LogOut size={18} className="mr-2 group-data-[collapsible=icon]:mr-0" />
+              <span className="group-data-[collapsible=icon]:hidden">Sign Out</span>
+            </Button>
           </div>
         </SidebarFooter>
       </Sidebar>

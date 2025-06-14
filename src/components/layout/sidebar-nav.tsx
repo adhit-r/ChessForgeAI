@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -9,6 +10,7 @@ import {
   Settings,
   Puzzle,
   BrainCircuit,
+  BookOpen, // Added for Learn section
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -25,7 +27,7 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/comp
 
 export interface NavItem {
   title: string;
-  href: string;
+  href?: string; // Optional for parent items with sub-menus
   icon: React.ReactNode;
   disabled?: boolean;
   external?: boolean;
@@ -54,26 +56,27 @@ const navItems: NavItem[] = [
     icon: <Bot size={18} />,
     description: "Practice against an AI training partner.",
   },
-  // Example of a section with sub-items
-  // {
-  //   title: "Learn",
-  //   icon: <Puzzle size={18} />,
-  //   href: "/learn", // Optional parent link
-  //   items: [
-  //     {
-  //       title: "Puzzles",
-  //       href: "/learn/puzzles",
-  //       icon: <Puzzle size={16} />, // Smaller icon for sub-item
-  //       description: "Solve tactical puzzles."
-  //     },
-  //     {
-  //       title: "Openings",
-  //       href: "/learn/openings",
-  //       icon: <BrainCircuit size={16} />,
-  //       description: "Study chess openings."
-  //     }
-  //   ]
-  // }
+  {
+    title: "Learn",
+    icon: <BookOpen size={18} />,
+    description: "Improve your chess knowledge.",
+    items: [
+      {
+        title: "Puzzles",
+        href: "/learn/puzzles", // Placeholder, will need a page
+        icon: <Puzzle size={16} />,
+        description: "Solve tactical puzzles.",
+        disabled: true, // Disable until page is created
+      },
+      {
+        title: "Openings",
+        href: "/learn/openings", // Placeholder, will need a page
+        icon: <BrainCircuit size={16} />,
+        description: "Study chess openings.",
+        disabled: true, // Disable until page is created
+      }
+    ]
+  }
 ];
 
 
@@ -88,13 +91,14 @@ export function SidebarNav() {
     <TooltipProvider delayDuration={0}>
       <SidebarMenu>
         {navItems.map((item, index) => {
-          const isActive = item.active ?? (item.href ? pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href)) : false);
+          const isParentActive = item.items?.some(subItem => subItem.href && (pathname === subItem.href || pathname.startsWith(subItem.href)));
+          const isActive = item.active ?? (item.href ? pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href)) : isParentActive);
           
           return (
             <SidebarMenuItem key={index}>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Link href={item.disabled || !item.href ? "#" : item.href} passHref legacyBehavior>
+                  <Link href={item.disabled || !item.href && !item.items ? "#" : item.href || "#"} passHref legacyBehavior>
                     <SidebarMenuButton
                       variant="default"
                       size="default"
