@@ -11,17 +11,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Lightbulb, UploadCloud, Loader2, AlertCircle, ExternalLink, CheckCircle, UserSearch } from 'lucide-react';
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { FileText, Lightbulb, Loader2, AlertCircle, CheckCircle, UserSearch } from 'lucide-react';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 
 import { analyzeChessGame, AnalyzeChessGameOutput } from '@/ai/flows/analyze-chess-game';
 import { generateImprovementTips, GenerateImprovementTipsOutput } from '@/ai/flows/generate-improvement-tips';
-import { fetchGameHistory, FetchGameHistoryInput, FetchGameHistoryOutput } from '@/ai/flows/fetch-game-history';
+import { fetchGameHistory, FetchGameHistoryOutput } from '@/ai/flows/fetch-game-history';
 
 const pgnImportSchema = z.object({
   pgn: z.string().min(10, { message: "PGN data seems too short." }).max(20000, { message: "PGN data is too long." }),
@@ -86,8 +85,6 @@ export default function AnalysisPage() {
 
       if (historyOutput.games && historyOutput.games.length > 0) {
         toast({ title: "Games Fetched!", description: `Found ${historyOutput.games.length} games. Analyzing the first one.`, variant: "default"});
-        // For this iteration, analyze the first game.
-        // In a real app, you might let the user choose or process multiple.
         await processAnalysis(historyOutput.games[0], `${data.platform} (${data.username})`);
       } else {
         toast({ title: "No Games Found", description: `No games found for ${data.username} on ${data.platform}, or the platform integration is pending.`, variant: "default" });
@@ -256,3 +253,7 @@ export default function AnalysisPage() {
     </div>
   );
 }
+
+    
+
+    
