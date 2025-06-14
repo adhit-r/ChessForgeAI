@@ -11,15 +11,17 @@ import { GoogleAuthProvider, signInWithPopup, type UserCredential, signInAnonymo
 import { useToast } from "@/hooks/use-toast";
 
 // PKCE Helper Functions
-function dec2hex(dec: number) {
+function dec2hex(dec: number): string {
   return ('0' + dec.toString(16)).slice(-2);
 }
 
-function generateRandomString(len: number) {
+function generateRandomString(len: number): string {
   const arr = new Uint8Array((len || 40) / 2);
-  if (typeof window !== 'undefined') {
+  if (typeof window !== 'undefined' && window.crypto) {
     window.crypto.getRandomValues(arr);
   } else {
+    // Fallback for environments where window.crypto is not available (e.g., older Node for testing)
+    // This is less secure and should ideally not be hit in the browser.
     for (let i = 0; i < arr.length; i++) {
       arr[i] = Math.floor(Math.random() * 256);
     }
@@ -27,17 +29,18 @@ function generateRandomString(len: number) {
   return Array.from(arr, dec2hex).join('');
 }
 
-async function sha256(plain: string) {
+async function sha256(plain: string): Promise<ArrayBuffer> {
   const encoder = new TextEncoder();
   const data = encoder.encode(plain);
   if (typeof window !== 'undefined' && window.crypto?.subtle) {
     return window.crypto.subtle.digest('SHA-256', data);
   }
+  // Fallback for Node.js crypto (e.g. for testing, not used in browser for PKCE)
   const { createHash } = await import('crypto');
-  return createHash('sha256').update(data).digest();
+  return createHash('sha256').update(data).digest().buffer;
 }
 
-function base64urlencode(a: ArrayBuffer) {
+function base64urlencode(a: ArrayBuffer): string {
   let str = "";
   const bytes = new Uint8Array(a);
   const len = bytes.byteLength;
@@ -50,8 +53,6 @@ function base64urlencode(a: ArrayBuffer) {
     .replace(/=+$/, "");
 }
 
-// Lichess requires a Client ID even for PKCE to identify your application.
-// It doesn't require a Client Secret on the client for PKCE.
 const LICHESS_CLIENT_ID = process.env.NEXT_PUBLIC_LICHESS_CLIENT_ID; 
 const LICHESS_SCOPES = "preference:read game:read";
 
@@ -63,7 +64,6 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // Dynamically set redirect URI based on current origin
       setLichessRedirectUri(`${window.location.origin}/login`);
     }
   }, []);
@@ -71,9 +71,6 @@ export default function LoginPage() {
 
   useEffect(() => {
     const authCode = searchParams.get('code');
-    // Lichess might send 'state' for CSRF protection, though not strictly used in basic PKCE.
-    // const state = searchParams.get('state'); 
-
     if (authCode && typeof window !== 'undefined' && lichessRedirectUri) {
       const codeVerifier = sessionStorage.getItem('lichessCodeVerifier');
       if (!codeVerifier) {
@@ -85,7 +82,7 @@ export default function LoginPage() {
       const exchangeCodeForToken = async (code: string, verifier: string) => {
         try {
           if (!LICHESS_CLIENT_ID) {
-            toast({ title: "Lichess Configuration Error", description: "Lichess Client ID is not configured.", variant: "destructive" });
+            toast({ title: "Lichess Configuration Error", description: "Lichess Client ID is not configured. Please set NEXT_PUBLIC_LICHESS_CLIENT_ID in your .env file.", variant: "destructive" });
             return;
           }
           const params = new URLSearchParams();
@@ -103,14 +100,14 @@ export default function LoginPage() {
 
           const tokenData = await response.json();
           sessionStorage.removeItem('lichessCodeVerifier');
-          router.replace('/login', undefined); 
+          router.replace('/login', undefined); // Clear code from URL
 
           if (response.ok && tokenData.access_token) {
             console.log("Lichess Access Token (PKCE):", tokenData.access_token);
             toast({ 
-              title: "Lichess Token Received (PKCE)!", 
-              description: "Lichess authentication successful. Next: Exchange this for a Firebase Custom Token via a Cloud Function to complete Firebase sign-in and redirect to dashboard.",
-              duration: 12000, 
+              title: "Lichess Token Received (Step 1/2 Complete)!", 
+              description: "Next: Securely send this Lichess token to a Firebase Cloud Function. The function will verify it, mint a Firebase Custom Token, and return it. Then, sign in with that Firebase token to access the dashboard.",
+              duration: 15000, 
             });
             // TODO: 
             // 1. Send tokenData.access_token to your Firebase Cloud Function.
@@ -143,7 +140,7 @@ export default function LoginPage() {
         router.push('/'); 
       } catch (error: any) {
         console.error("Google Sign-In Error:", error);
-        toast({ title: "Sign-In Error", description: error.message, variant: "destructive"});
+        toast({ title: "Sign-In Error", description: "Could not sign in with Google. Ensure your Firebase project's Authorized Domains are correctly set up. Error: " + error.message, variant: "destructive", duration: 10000});
       }
     } else if (providerName === 'Lichess') {
       if (!LICHESS_CLIENT_ID) {
@@ -162,21 +159,18 @@ export default function LoginPage() {
 
         const authUrl = new URL('https://lichess.org/oauth');
         authUrl.searchParams.set('response_type', 'code');
-        authUrl.searchParams.set('client_id', LICHESS_CLIENT_ID);
+        authUrl.searchParams.set('client_id', LICHESS_CLIENT_ID); // Lichess requires client_id for PKCE
         authUrl.searchParams.set('redirect_uri', lichessRedirectUri);
         authUrl.searchParams.set('scope', LICHESS_SCOPES);
         authUrl.searchParams.set('code_challenge_method', 'S256');
         authUrl.searchParams.set('code_challenge', codeChallenge);
-        // authUrl.searchParams.set('state', generateRandomString(16)); // Optional: for CSRF protection
+        // authUrl.searchParams.set('state', generateRandomString(16)); // Optional for CSRF protection
 
         window.location.href = authUrl.toString();
       } catch (error) {
         console.error("Lichess PKCE setup error:", error);
         toast({ title: "Lichess Login Setup Error", description: "Could not initiate Lichess login. " + (error instanceof Error ? error.message : String(error)), variant: "destructive" });
       }
-
-    } else {
-      // Placeholder for other providers
     }
   };
 
@@ -270,4 +264,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
