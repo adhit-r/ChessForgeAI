@@ -544,24 +544,27 @@ const SidebarMenuButton = React.forwardRef<
 >(
   (
     {
-      asChild: ownAsChild = false, // Renamed to avoid conflict, defaults to false
+      asChild: ownAsChild = false, 
       isActive = false,
       variant = "default",
       size = "default",
       tooltip: tooltipProp,
       className,
-      ...rest // 'rest' might contain 'asChild' from a parent (e.g., Link)
+      ...rest 
     },
     ref
   ) => {
     const Comp = ownAsChild ? Slot : "button";
     const { isMobile, state } = useSidebar();
 
-    // If ownAsChild is false, we are rendering a DOM element (Comp="button").
-    // We must strip any 'asChild' from 'rest' before spreading it onto the button.
-    // If ownAsChild is true, Comp is Slot, and 'rest' (which might include an 'asChild' from Link) can be passed as is,
-    // as Slot can handle it or pass it further if needed.
-    const propsForElement = ownAsChild ? rest : (({ asChild: _discard, ...otherProps }) => otherProps)(rest);
+    let finalProps;
+    if (ownAsChild) {
+      finalProps = rest; // Pass all props to Slot, including any incoming asChild from parent
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { asChild: _discard, ...otherProps } = rest; // Strip asChild from props for the DOM element
+      finalProps = otherProps;
+    }
 
     const buttonElement = (
       <Comp
@@ -570,7 +573,7 @@ const SidebarMenuButton = React.forwardRef<
         data-size={size}
         data-active={isActive}
         className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
-        {...propsForElement} // Use the potentially filtered props
+        {...finalProps} 
       />
     );
 
@@ -584,7 +587,6 @@ const SidebarMenuButton = React.forwardRef<
     } else {
       tooltipContentProps = tooltipProp;
     }
-
 
     return (
       <Tooltip>
@@ -717,23 +719,27 @@ SidebarMenuSubItem.displayName = "SidebarMenuSubItem"
 const SidebarMenuSubButton = React.forwardRef<
   HTMLAnchorElement,
   React.ComponentProps<"a"> & {
-    asChild?: boolean // This is the asChild prop for SidebarMenuSubButton itself
+    asChild?: boolean 
     size?: "sm" | "md"
     isActive?: boolean
   }
 >(({ 
-    asChild: ownAsChild = false, // Renamed to avoid conflict, defaults to false
+    asChild: ownAsChild = false, 
     size = "md", 
     isActive, 
     className, 
-    ...rest // 'rest' might contain 'asChild' from a parent (e.g., Link)
+    ...rest 
   }, ref) => {
   const Comp = ownAsChild ? Slot : "a";
   
-  // If ownAsChild is false, we are rendering a DOM element (Comp="a").
-  // We must strip any 'asChild' from 'rest' before spreading it onto the anchor.
-  // If ownAsChild is true, Comp is Slot, and 'rest' can be passed as is.
-  const propsForElement = ownAsChild ? rest : (({ asChild: _discard, ...otherProps }) => otherProps)(rest);
+  let finalProps;
+  if (ownAsChild) {
+    finalProps = rest; // Pass all props to Slot, including any incoming asChild
+  } else {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { asChild: _discard, ...otherProps } = rest; // Strip asChild from props for the DOM element
+    finalProps = otherProps;
+  }
 
   return (
     <Comp
@@ -749,7 +755,7 @@ const SidebarMenuSubButton = React.forwardRef<
         "group-data-[collapsible=icon]:hidden",
         className
       )}
-      {...propsForElement} // Use the potentially filtered props
+      {...finalProps} 
     />
   )
 })
@@ -781,6 +787,3 @@ export {
   SidebarTrigger,
   useSidebar,
 }
-
-
-    
