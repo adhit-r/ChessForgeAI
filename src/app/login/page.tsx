@@ -55,23 +55,30 @@ function base64urlencode(a: ArrayBuffer) {
 }
 
 
-const LICHESS_CLIENT_ID = process.env.NEXT_PUBLIC_LICHESS_CLIENT_ID || "chessforgeai-dev"; // Replace with your actual Lichess Client ID in .env
-const LICHESS_REDIRECT_URI = typeof window !== 'undefined' ? `${window.location.origin}/login` : 'http://localhost:9002/login';
+const LICHESS_CLIENT_ID = process.env.NEXT_PUBLIC_LICHESS_CLIENT_ID || "chessforgeai-dev"; 
 const LICHESS_SCOPES = "preference:read game:read"; // Adjust scopes as needed
 
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
+  const [lichessRedirectUri, setLichessRedirectUri] = React.useState('');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setLichessRedirectUri(`${window.location.origin}/login`);
+    }
+  }, []);
+
 
   useEffect(() => {
     const authCode = searchParams.get('code');
     const state = searchParams.get('state'); // Lichess might send 'state' for CSRF protection
 
-    if (authCode && typeof window !== 'undefined') {
+    if (authCode && typeof window !== 'undefined' && lichessRedirectUri) {
       const codeVerifier = sessionStorage.getItem('lichessCodeVerifier');
       if (!codeVerifier) {
-        toast({ title: "Lichess Login Error", description: "Code verifier not found. Please try again.", variant: "destructive" });
+        toast({ title: "Lichess Login Error", description: "Code verifier not found. Please try logging in again.", variant: "destructive" });
         router.replace('/login', undefined); // Remove query params
         return;
       }
@@ -81,7 +88,7 @@ export default function LoginPage() {
           const params = new URLSearchParams();
           params.append('grant_type', 'authorization_code');
           params.append('code', code);
-          params.append('redirect_uri', LICHESS_REDIRECT_URI);
+          params.append('redirect_uri', lichessRedirectUri);
           params.append('client_id', LICHESS_CLIENT_ID);
           params.append('code_verifier', verifier);
 
@@ -96,17 +103,20 @@ export default function LoginPage() {
           router.replace('/login', undefined); // Clean URL
 
           if (response.ok && tokenData.access_token) {
-            toast({ title: "Lichess Token Received", description: "Successfully obtained Lichess access token." });
             console.log("Lichess Access Token:", tokenData.access_token);
-            // TODO: Send this tokenData.access_token to your Firebase Cloud Function
-            // The Cloud Function will verify it, get Lichess user details,
-            // mint a Firebase Custom Token, and return it to the client.
-            // Then, on the client: signInWithCustomToken(auth, firebaseCustomToken);
-            // For now, let's simulate a successful login and redirect
-            toast({ title: "Lichess Login (Simulated)", description: "Next: Firebase Custom Token flow."});
-            // router.push('/'); // Example redirect after Firebase custom auth
+            toast({ 
+              title: "Lichess Token Received!", 
+              description: "Next step: Send this token to a Firebase Cloud Function to get a Firebase Custom Token, then sign in to Firebase and redirect to dashboard.",
+              duration: 9000, // Keep toast longer
+            });
+            // TODO: Implement Firebase Cloud Function call here.
+            // 1. Send tokenData.access_token to your Firebase Cloud Function.
+            // 2. Cloud Function verifies Lichess token, gets Lichess user ID, mints Firebase Custom Token.
+            // 3. Cloud Function returns Firebase Custom Token to client.
+            // 4. Client calls: await signInWithCustomToken(auth, firebaseCustomToken);
+            // 5. Then: router.push('/'); 
           } else {
-            toast({ title: "Lichess Token Error", description: tokenData.error_description || "Failed to exchange code for token.", variant: "destructive" });
+            toast({ title: "Lichess Token Error", description: tokenData.error_description || "Failed to exchange code for Lichess token.", variant: "destructive" });
           }
         } catch (error) {
           console.error("Lichess token exchange error:", error);
@@ -118,7 +128,7 @@ export default function LoginPage() {
 
       exchangeCodeForToken(authCode, codeVerifier);
     }
-  }, [searchParams, router, toast]);
+  }, [searchParams, router, toast, lichessRedirectUri]);
 
 
   const handleLogin = async (providerName: string) => {
@@ -126,7 +136,7 @@ export default function LoginPage() {
       const provider = new GoogleAuthProvider();
       try {
         const result: UserCredential = await signInWithPopup(auth, provider);
-        toast({ title: "Signed In", description: `Welcome, ${result.user.displayName || result.user.email}!`});
+        toast({ title: "Signed In with Google", description: `Welcome, ${result.user.displayName || result.user.email}!`});
         router.push('/'); 
       } catch (error: any) {
         console.error("Google Sign-In Error:", error);
@@ -137,6 +147,10 @@ export default function LoginPage() {
          toast({ title: "Lichess Client ID Missing", description: "Please configure NEXT_PUBLIC_LICHESS_CLIENT_ID in your .env file.", variant: "destructive" });
          return;
       }
+      if (!lichessRedirectUri) {
+        toast({ title: "Lichess Login Setup Error", description: "Redirect URI not ready. Please try again in a moment.", variant: "destructive" });
+        return;
+      }
       try {
         const codeVerifier = generateRandomString(128);
         sessionStorage.setItem('lichessCodeVerifier', codeVerifier);
@@ -146,7 +160,7 @@ export default function LoginPage() {
         const authUrl = new URL('https://lichess.org/oauth');
         authUrl.searchParams.set('response_type', 'code');
         authUrl.searchParams.set('client_id', LICHESS_CLIENT_ID);
-        authUrl.searchParams.set('redirect_uri', LICHESS_REDIRECT_URI);
+        authUrl.searchParams.set('redirect_uri', lichessRedirectUri);
         authUrl.searchParams.set('scope', LICHESS_SCOPES);
         authUrl.searchParams.set('code_challenge_method', 'S256');
         authUrl.searchParams.set('code_challenge', codeChallenge);
