@@ -525,39 +525,40 @@ const sidebarMenuButtonVariants = cva(
 )
 
 const SidebarMenuButton = React.forwardRef<
-  HTMLButtonElement, // Default element type
-  React.ComponentProps<"button"> & { // Base props from default element
-    asChild?: boolean; // Component's own asChild prop
+  HTMLButtonElement,
+  React.ComponentProps<"button"> & {
+    asChild?: boolean;
     isActive?: boolean;
     tooltip?: string | React.ComponentProps<typeof TooltipContent>;
   } & VariantProps<typeof sidebarMenuButtonVariants>
 >(
   (
     {
-      asChild: ownAsChild = false, // This component's decision to render Slot or DOM element
+      asChild: ownAsChild = false,
       isActive = false,
       variant = "default",
       size = "default",
       tooltip: tooltipProp,
       className,
-      // `...rest` contains all other props passed by the parent.
-      // If parent is `<Link asChild href="...">`, then `rest` will include `asChild=true` and `href="/..."`.
       ...rest
     },
     ref
   ) => {
-    const Comp = ownAsChild ? Slot : "button"; // If ownAsChild, render Slot, otherwise render "button"
+    const Comp = ownAsChild ? Slot : "button";
     const { isMobile, state } = useSidebar();
 
-    // `parentAsChildProp` is the `asChild` prop that might have been passed *from the parent component* (e.g., Link).
-    // `remainingParentProps` are all other props from the parent, excluding `parentAsChildProp`.
-    const { asChild: parentAsChildProp, ...remainingParentProps } = rest;
-
-    // If `ownAsChild` is true, `Comp` is `Slot`. `Slot` should receive all original `rest` props,
-    // as `Slot` itself can handle `asChild` (which would be `parentAsChildProp` from `rest`).
-    // If `ownAsChild` is false, `Comp` is `"button"`. The `"button"` element should receive
-    // `remainingParentProps` (which has `parentAsChildProp` removed).
-    const propsToSpread = ownAsChild ? rest : remainingParentProps;
+    let propsToSpread = rest;
+    if (!ownAsChild && rest.asChild) {
+      const { asChild: _discard, ...remainingProps } = rest;
+      propsToSpread = remainingProps;
+    } else if (ownAsChild) {
+      propsToSpread = rest;
+    } else {
+      // ownAsChild is false, and rest.asChild is also false or undefined
+      // No need to strip asChild as it's not there or false.
+      const { asChild: _possiblyFalseAsChild, ...remainingProps } = rest;
+      propsToSpread = remainingProps;
+    }
     
     const buttonElement = (
       <Comp
@@ -708,32 +709,31 @@ const SidebarMenuSubItem = React.forwardRef<
 SidebarMenuSubItem.displayName = "SidebarMenuSubItem"
 
 const SidebarMenuSubButton = React.forwardRef<
-  HTMLAnchorElement, // Default element type
-  React.ComponentProps<"a"> & { // Base props from default element
-    asChild?: boolean; // Component's own asChild prop
+  HTMLAnchorElement, 
+  React.ComponentProps<"a"> & { 
+    asChild?: boolean; 
     size?: "sm" | "md";
     isActive?: boolean;
   }
 >(({ 
-    asChild: ownAsChild = false, // This component's decision to render Slot or DOM element
+    asChild: ownAsChild = false, 
     size = "md", 
     isActive, 
     className, 
-    // `...rest` contains all other props passed by the parent.
-    // If parent is `<Link asChild href="...">`, then `rest` will include `asChild=true` and `href="/..."`.
     ...rest 
   }, ref) => {
-  const Comp = ownAsChild ? Slot : "a"; // If ownAsChild, render Slot, otherwise render "a"
+  const Comp = ownAsChild ? Slot : "a"; 
   
-  // `parentAsChildProp` is the `asChild` prop that might have been passed *from the parent component* (e.g., Link).
-  // `remainingParentProps` are all other props from the parent, excluding `parentAsChildProp`.
-  const { asChild: parentAsChildProp, ...remainingParentProps } = rest;
-
-  // If `ownAsChild` is true, `Comp` is `Slot`. `Slot` should receive all original `rest` props,
-  // as `Slot` itself can handle `asChild` (which would be `parentAsChildProp` from `rest`).
-  // If `ownAsChild` is false, `Comp` is `"a"`. The `"a"` element should receive
-  // `remainingParentProps` (which has `parentAsChildProp` removed).
-  const propsToSpread = ownAsChild ? rest : remainingParentProps;
+  let propsToSpread = rest;
+  if (!ownAsChild && rest.asChild) {
+    const { asChild: _discard, ...remainingProps } = rest;
+    propsToSpread = remainingProps;
+  } else if (ownAsChild) {
+     propsToSpread = rest;
+  } else {
+    const { asChild: _possiblyFalseAsChild, ...remainingProps } = rest;
+    propsToSpread = remainingProps;
+  }
 
   return (
     <Comp
@@ -781,4 +781,3 @@ export {
   SidebarTrigger,
   useSidebar,
 }
-
