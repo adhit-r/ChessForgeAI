@@ -1,21 +1,126 @@
 
 "use client";
 
-import React from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Bot, LogIn, User } from 'lucide-react';
-import { auth } from '@/lib/firebase'; // Import Firebase auth
+import { auth } from '@/lib/firebase';
 import { GoogleAuthProvider, signInWithPopup, UserCredential, signInAnonymously } from 'firebase/auth';
 import { useToast } from "@/hooks/use-toast";
 
-// You might want specific icons for Google, Lichess, etc.
-// import { GoogleIcon, LichessIcon, ChesscomIcon, Chess24Icon } from '@/components/icons'; // Example
+// Helper for PKCE
+function dec2hex(dec: number) {
+  return ('0' + dec.toString(16)).slice(-2);
+}
+
+function generateRandomString(len: number) {
+  const arr = new Uint8Array((len || 40) / 2);
+  if (typeof window !== 'undefined') {
+    window.crypto.getRandomValues(arr);
+  } else {
+    // Fallback for non-browser environments (less secure, for initial load/SSR if ever needed)
+    for (let i = 0; i < arr.length; i++) {
+      arr[i] = Math.floor(Math.random() * 256);
+    }
+  }
+  return Array.from(arr, dec2hex).join('');
+}
+
+async function sha256(plain: string) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(plain);
+  if (typeof window !== 'undefined' && window.crypto?.subtle) {
+    return window.crypto.subtle.digest('SHA-256', data);
+  }
+  // Basic polyfill/fallback for Node.js or environments without crypto.subtle for hashing
+  // THIS IS NOT FOR PRODUCTION USE on client if window.crypto is unavailable
+  // For Node.js, you'd use the 'crypto' module. This is a conceptual placeholder.
+  const { createHash } = await import('crypto');
+  return createHash('sha256').update(data).digest();
+}
+
+function base64urlencode(a: ArrayBuffer) {
+  let str = "";
+  const bytes = new Uint8Array(a);
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    str += String.fromCharCode(bytes[i]);
+  }
+  return btoa(str)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
+
+const LICHESS_CLIENT_ID = process.env.NEXT_PUBLIC_LICHESS_CLIENT_ID || "chessforgeai-dev"; // Replace with your actual Lichess Client ID in .env
+const LICHESS_REDIRECT_URI = typeof window !== 'undefined' ? `${window.location.origin}/login` : 'http://localhost:9002/login';
+const LICHESS_SCOPES = "preference:read game:read"; // Adjust scopes as needed
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
+
+  useEffect(() => {
+    const authCode = searchParams.get('code');
+    const state = searchParams.get('state'); // Lichess might send 'state' for CSRF protection
+
+    if (authCode && typeof window !== 'undefined') {
+      const codeVerifier = sessionStorage.getItem('lichessCodeVerifier');
+      if (!codeVerifier) {
+        toast({ title: "Lichess Login Error", description: "Code verifier not found. Please try again.", variant: "destructive" });
+        router.replace('/login', undefined); // Remove query params
+        return;
+      }
+
+      const exchangeCodeForToken = async (code: string, verifier: string) => {
+        try {
+          const params = new URLSearchParams();
+          params.append('grant_type', 'authorization_code');
+          params.append('code', code);
+          params.append('redirect_uri', LICHESS_REDIRECT_URI);
+          params.append('client_id', LICHESS_CLIENT_ID);
+          params.append('code_verifier', verifier);
+
+          const response = await fetch('https://lichess.org/api/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: params.toString(),
+          });
+
+          const tokenData = await response.json();
+          sessionStorage.removeItem('lichessCodeVerifier');
+          router.replace('/login', undefined); // Clean URL
+
+          if (response.ok && tokenData.access_token) {
+            toast({ title: "Lichess Token Received", description: "Successfully obtained Lichess access token." });
+            console.log("Lichess Access Token:", tokenData.access_token);
+            // TODO: Send this tokenData.access_token to your Firebase Cloud Function
+            // The Cloud Function will verify it, get Lichess user details,
+            // mint a Firebase Custom Token, and return it to the client.
+            // Then, on the client: signInWithCustomToken(auth, firebaseCustomToken);
+            // For now, let's simulate a successful login and redirect
+            // This part needs to be replaced with actual Firebase Custom Token sign-in
+            toast({ title: "Lichess Login (Simulated)", description: "Next: Firebase Custom Token flow."});
+            // router.push('/'); // Example redirect after Firebase custom auth
+          } else {
+            toast({ title: "Lichess Token Error", description: tokenData.error_description || "Failed to exchange code for token.", variant: "destructive" });
+          }
+        } catch (error) {
+          console.error("Lichess token exchange error:", error);
+          toast({ title: "Lichess Login Error", description: "Could not exchange authorization code for token. " + (error instanceof Error ? error.message : String(error)), variant: "destructive" });
+          sessionStorage.removeItem('lichessCodeVerifier');
+          router.replace('/login', undefined);
+        }
+      };
+
+      exchangeCodeForToken(authCode, codeVerifier);
+    }
+  }, [searchParams, router, toast]);
+
 
   const handleLogin = async (providerName: string) => {
     if (providerName === 'Google') {
@@ -23,17 +128,37 @@ export default function LoginPage() {
       try {
         const result: UserCredential = await signInWithPopup(auth, provider);
         toast({ title: "Signed In", description: `Welcome, ${result.user.displayName || result.user.email}!`});
-        router.push('/'); // Redirect to dashboard on successful login
+        router.push('/'); 
       } catch (error: any) {
         console.error("Google Sign-In Error:", error);
         toast({ title: "Sign-In Error", description: error.message, variant: "destructive"});
       }
     } else if (providerName === 'Lichess') {
-      // Placeholder: Actual Lichess OAuth flow will be more complex
-      toast({ title: "Lichess Login", description: "Lichess login requires server-side setup. We'll guide you once you have your Lichess Client ID.", variant: "default"});
-      // The actual flow would start with:
-      // const lichessAuthUrl = `https://lichess.org/oauth?client_id=YOUR_LICHESS_CLIENT_ID&response_type=code&redirect_uri=YOUR_REDIRECT_URI&scope=preference:read%20game:read`;
-      // window.location.href = lichessAuthUrl;
+      if (!LICHESS_CLIENT_ID || LICHESS_CLIENT_ID === "chessforgeai-dev") {
+         toast({ title: "Lichess Client ID Missing", description: "Please configure NEXT_PUBLIC_LICHESS_CLIENT_ID in your .env file.", variant: "destructive" });
+         return;
+      }
+      try {
+        const codeVerifier = generateRandomString(128);
+        sessionStorage.setItem('lichessCodeVerifier', codeVerifier);
+        const hashed = await sha256(codeVerifier);
+        const codeChallenge = base64urlencode(hashed);
+
+        const authUrl = new URL('https://lichess.org/oauth');
+        authUrl.searchParams.set('response_type', 'code');
+        authUrl.searchParams.set('client_id', LICHESS_CLIENT_ID);
+        authUrl.searchParams.set('redirect_uri', LICHESS_REDIRECT_URI);
+        authUrl.searchParams.set('scope', LICHESS_SCOPES);
+        authUrl.searchParams.set('code_challenge_method', 'S256');
+        authUrl.searchParams.set('code_challenge', codeChallenge);
+        // authUrl.searchParams.set('state', generateRandomString(16)); // Optional: for CSRF protection
+
+        window.location.href = authUrl.toString();
+      } catch (error) {
+        console.error("Lichess PKCE setup error:", error);
+        toast({ title: "Lichess Login Setup Error", description: "Could not initiate Lichess login. " + (error instanceof Error ? error.message : String(error)), variant: "destructive" });
+      }
+
     } else {
       toast({ title: `${providerName} Login`, description: `Login with ${providerName} is coming soon!`, variant: "default"});
     }
@@ -41,7 +166,7 @@ export default function LoginPage() {
 
   const handleGuestAccess = async () => {
     try {
-      const userCredential = await signInAnonymously(auth);
+      await signInAnonymously(auth);
       toast({ title: "Guest Access", description: "You're browsing as a guest. Your data might be temporary." });
       router.push('/'); 
     } catch (error: any) {
@@ -72,7 +197,6 @@ export default function LoginPage() {
               className="w-full" 
               variant="outline"
             >
-              {/* <GoogleIcon className="mr-2 h-5 w-5" /> // Example */}
               <LogIn className="mr-2 h-5 w-5" /> 
               Sign in with Google
             </Button>
@@ -81,7 +205,6 @@ export default function LoginPage() {
               className="w-full"
               variant="outline"
             >
-              {/* <LichessIcon className="mr-2 h-5 w-5" /> // Example */}
               <LogIn className="mr-2 h-5 w-5" /> 
               Sign in with Lichess.org
             </Button>
@@ -89,9 +212,8 @@ export default function LoginPage() {
               onClick={() => handleLogin('Chess.com')} 
               className="w-full"
               variant="outline"
-              disabled // Temporarily disable until explicitly worked on
+              disabled 
             >
-              {/* <ChesscomIcon className="mr-2 h-5 w-5" /> // Example */}
               <LogIn className="mr-2 h-5 w-5" /> 
               Sign in with Chess.com (Coming Soon)
             </Button>
@@ -99,9 +221,8 @@ export default function LoginPage() {
               onClick={() => handleLogin('Chess24')} 
               className="w-full"
               variant="outline"
-              disabled // Temporarily disable until explicitly worked on
+              disabled 
             >
-              {/* <Chess24Icon className="mr-2 h-5 w-5" /> // Example */}
               <LogIn className="mr-2 h-5 w-5" /> 
               Sign in with Chess24 (Coming Soon)
             </Button>
@@ -135,4 +256,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
