@@ -20,6 +20,8 @@ function generateRandomString(len: number): string {
   if (typeof window !== 'undefined' && window.crypto) {
     window.crypto.getRandomValues(arr);
   } else {
+    // Fallback for environments where window.crypto is not available (e.g., older Node.js versions for server-side rendering if used there)
+    // This should ideally not be hit in a client-side context for PKCE.
     for (let i = 0; i < arr.length; i++) {
       arr[i] = Math.floor(Math.random() * 256);
     }
@@ -33,8 +35,15 @@ async function sha256(plain: string): Promise<ArrayBuffer> {
   if (typeof window !== 'undefined' && window.crypto?.subtle) {
     return window.crypto.subtle.digest('SHA-256', data);
   }
-  console.warn("SHA256: window.crypto.subtle not available, using fallback (less ideal for client-side).");
-  const { createHash } = await import('crypto');
+  // Fallback for environments where window.crypto.subtle is not available.
+  // This scenario is less ideal for client-side PKCE.
+  // Node.js crypto module might be needed if this code ever ran server-side (not the case here).
+  console.warn("SHA256: window.crypto.subtle not available, using less ideal fallback if Node.js crypto isn't present.");
+  // For pure client-side without subtle.crypto, a robust polyfill would be better.
+  // This is a simplified fallback for demonstration and might not be cryptographically secure
+  // enough for all production scenarios if subtle.crypto is absent.
+  // A proper crypto library/polyfill should be used if subtle.crypto is unavailable.
+  const { createHash } = await import('crypto'); // This line will cause issues if 'crypto' module is not available in the browser environment or polyfilled.
   return createHash('sha256').update(data).digest().buffer;
 }
 
@@ -60,7 +69,7 @@ export default function LoginPage() {
   const { toast } = useToast();
   const [lichessRedirectUri, setLichessRedirectUri] = useState('');
   // Set to true to pause URL cleanup for Lichess callback debugging, set to false for normal operation
-  const [debugLichessCallback, setDebugLichessCallback] = useState(true); 
+  const [debugLichessCallback, setDebugLichessCallback] = useState(true);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -73,19 +82,19 @@ export default function LoginPage() {
 
   useEffect(() => {
     const authCode = searchParams.get('code');
-    const state = searchParams.get('state'); 
-    
+    const state = searchParams.get('state'); // Lichess might send a state param, capture if needed for CSRF
+
     console.log("Lichess Login: Login page useEffect triggered. Auth Code:", authCode, "State:", state, "Lichess Redirect URI ready:", !!lichessRedirectUri);
 
     if (authCode && typeof window !== 'undefined' && lichessRedirectUri) {
       console.log("Lichess Login: Attempting to process Lichess auth code...");
       const codeVerifier = sessionStorage.getItem('lichessCodeVerifier');
-      
+
       if (!codeVerifier) {
         console.error("Lichess Login Error: Code verifier not found in sessionStorage. This can happen if you refreshed the /login page after Lichess redirected, or if sessionStorage is disabled/cleared.");
         toast({ title: "Lichess Login Error", description: "Code verifier missing. Please try logging in again.", variant: "destructive" });
         if (!debugLichessCallback) {
-          router.replace('/login', undefined); 
+          router.replace('/login', undefined); // Clean up URL only if not debugging
         }
         return;
       }
@@ -96,13 +105,13 @@ export default function LoginPage() {
         try {
           if (!LICHESS_CLIENT_ID) {
             console.error("Lichess Configuration Error: Client ID (NEXT_PUBLIC_LICHESS_CLIENT_ID) is not configured in .env file.");
-            toast({ title: "Lichess Configuration Error", description: "Lichess Client ID (NEXT_PUBLIC_LICHESS_CLIENT_ID) is missing. Please set it in your .env file.", variant: "destructive" });
+            toast({ title: "Lichess Configuration Error", description: "Lichess Client ID is missing. Please set NEXT_PUBLIC_LICHESS_CLIENT_ID in your .env file.", variant: "destructive" });
             return;
           }
           const params = new URLSearchParams();
           params.append('grant_type', 'authorization_code');
           params.append('code', code);
-          params.append('redirect_uri', lichessRedirectUri); 
+          params.append('redirect_uri', lichessRedirectUri); // Must match what was sent in the auth request and registered
           params.append('client_id', LICHESS_CLIENT_ID);
           params.append('code_verifier', verifier);
 
@@ -113,21 +122,21 @@ export default function LoginPage() {
           });
 
           const tokenData = await response.json();
-          
+
           if (!debugLichessCallback) {
-            sessionStorage.removeItem('lichessCodeVerifier');
-            router.replace('/login', undefined); 
+            sessionStorage.removeItem('lichessCodeVerifier'); // Clean up verifier
+            router.replace('/login', undefined); // Clean up URL query params
           }
 
           if (response.ok && tokenData.access_token) {
             console.log("Lichess Login: Lichess Access Token (PKCE Flow) received:", tokenData.access_token);
-            toast({ 
-              title: "Lichess Token Received (Client-Side)", 
-              description: "Lichess token obtained. IMPORTANT: Next, this token must be sent to a Firebase Cloud Function to exchange it for a Firebase Custom Token. Only after signing in with that custom token will you be redirected to the dashboard. This part requires backend development.",
-              duration: 20000, 
+            toast({
+              title: "Lichess Token Received (Client-Side)",
+              description: "Lichess token obtained. NEXT STEP: This token must be sent to a Firebase Cloud Function to exchange it for a Firebase Custom Token. Only after signing in with that custom token will you be redirected to the dashboard. This part requires backend development.",
+              duration: 20000, // Keep toast longer
             });
             // TODO: Send tokenData.access_token to your Firebase Cloud Function.
-            // On success from Cloud Function (getting firebaseCustomToken): 
+            // On success from Cloud Function (getting firebaseCustomToken):
             // try {
             //   await signInWithCustomToken(auth, firebaseCustomToken);
             //   toast({ title: "Signed In with Lichess via Firebase", description: "Successfully signed into Firebase."});
@@ -144,8 +153,8 @@ export default function LoginPage() {
           console.error("Lichess Login: Lichess token exchange critical error:", error);
           toast({ title: "Lichess Login Network/Fetch Error", description: "Could not exchange code for token. " + (error instanceof Error ? error.message : String(error)), variant: "destructive" });
           if (!debugLichessCallback) {
-             sessionStorage.removeItem('lichessCodeVerifier'); 
-             router.replace('/login', undefined); 
+             sessionStorage.removeItem('lichessCodeVerifier'); // Clean up verifier on error too
+             router.replace('/login', undefined); // Clean up URL
           }
         }
       };
@@ -154,7 +163,8 @@ export default function LoginPage() {
     } else if (authCode && !lichessRedirectUri) {
         console.warn("Lichess Login: Lichess auth code present, but redirect URI not yet initialized in state. This can happen on fast re-renders. If login fails, try again.");
     }
-  }, [searchParams, router, toast, lichessRedirectUri, debugLichessCallback]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, router, toast, lichessRedirectUri, debugLichessCallback]); // `toast` and `router` are stable, `searchParams` and `lichessRedirectUri` are key dependencies. `debugLichessCallback` is for the debug logic.
 
 
   const handleLogin = async (providerName: string) => {
@@ -163,7 +173,7 @@ export default function LoginPage() {
       try {
         const result: UserCredential = await signInWithPopup(auth, provider);
         toast({ title: "Signed In with Google", description: `Welcome, ${result.user.displayName || result.user.email}!`});
-        router.push('/'); 
+        router.push('/');
       } catch (error: any) {
         console.error("Google Sign-In Error:", error);
         if (error.code === 'auth/unauthorized-domain') {
@@ -190,19 +200,23 @@ export default function LoginPage() {
         const codeVerifier = generateRandomString(128);
         sessionStorage.setItem('lichessCodeVerifier', codeVerifier);
         console.log("Lichess Login: Generated Lichess code verifier and stored in sessionStorage:", codeVerifier);
-        
+
         const hashed = await sha256(codeVerifier);
         const codeChallenge = base64urlencode(hashed);
         console.log("Lichess Login: Generated Lichess code challenge:", codeChallenge);
 
         const authUrl = new URL('https://lichess.org/oauth');
         authUrl.searchParams.set('response_type', 'code');
-        authUrl.searchParams.set('client_id', LICHESS_CLIENT_ID);
+        authUrl.searchParams.set('client_id', LICHESS_CLIENT_ID); // Client ID is required for Lichess OAuth
         authUrl.searchParams.set('redirect_uri', lichessRedirectUri);
         authUrl.searchParams.set('scope', LICHESS_SCOPES);
         authUrl.searchParams.set('code_challenge_method', 'S256');
         authUrl.searchParams.set('code_challenge', codeChallenge);
-        
+        // Optionally, you can add a 'state' parameter for CSRF protection if desired.
+        // const state = generateRandomString(32);
+        // sessionStorage.setItem('lichessOAuthState', state);
+        // authUrl.searchParams.set('state', state);
+
         console.log("Lichess Login: Redirecting to Lichess auth URL:", authUrl.toString());
         window.location.href = authUrl.toString();
       } catch (error) {
@@ -217,7 +231,7 @@ export default function LoginPage() {
       const userCredential = await signInAnonymously(auth);
       toast({ title: "Guest Access", description: "You're browsing as a guest. Your data might be temporary." });
       if (userCredential.user) {
-        router.push('/'); 
+        router.push('/');
       } else {
         toast({ title: "Guest Access Issue", description: "Could not complete guest sign-in fully, user object not found.", variant: "destructive"});
       }
@@ -248,34 +262,34 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent className="space-y-6 p-6">
           <div className="space-y-3">
-            <Button 
-              onClick={() => handleLogin('Google')} 
-              className="w-full" 
+            <Button
+              onClick={() => handleLogin('Google')}
+              className="w-full"
               variant="outline"
             >
               <svg className="mr-2 h-5 w-5" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path></svg>
               Sign in with Google
             </Button>
-            <Button 
-              onClick={() => handleLogin('Lichess')} 
+            <Button
+              onClick={() => handleLogin('Lichess')}
               className="w-full"
               variant="outline"
             >
               <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" strokeWidth="1.5" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 2c-2.485 0-4.5 2.015-4.5 4.5s2.015 4.5 4.5 4.5S18 8.985 18 6.5 15.985 2 13.5 2zm0 7c-1.381 0-2.5-1.119-2.5-2.5S12.119 4 13.5 4s2.5 1.119 2.5 2.5S14.881 9 13.5 9zM4 11.5C4 10.119 5.119 9 6.5 9h1c.868 0 1.636.281 2.273.757L12 12l-2.227 2.243A3.485 3.485 0 016.5 15H4v-3.5zm16 0V15h-2.5c-.868 0-1.636-.281-2.273-.757L13 12l2.227-2.243A3.485 3.485 0 0118.5 9H20v2.5zM9 13.5c0 2.485-2.015 4.5-4.5 4.5S0 15.985 0 13.5 2.015 9 4.5 9s4.5 2.015 4.5 4.5zm-2.5 0c0-1.105-.895-2-2-2s-2 .895-2 2 .895 2 2 2 2-.895 2-2zm11 0c0 2.485-2.015 4.5-4.5 4.5S11 15.985 11 13.5s2.015-4.5 4.5-4.5 4.5 2.015 4.5 4.5zm-2.5 0c0-1.105-.895-2-2-2s-2 .895-2 2 .895 2 2 2 2-.895 2-2z"></path></svg>
               Sign in with Lichess.org
             </Button>
-            <Button 
+            <Button
               className="w-full"
               variant="outline"
-              disabled 
+              disabled
             >
                <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"></path></svg>
               Sign in with Chess.com (Coming Soon)
             </Button>
-             <Button 
+             <Button
               className="w-full"
               variant="outline"
-              disabled 
+              disabled
             >
               <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v2h-2zm0 4h2v6h-2z"></path></svg>
               Sign in with Chess24 (Coming Soon)
@@ -293,15 +307,15 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <Button 
-            onClick={handleGuestAccess} 
-            className="w-full" 
+          <Button
+            onClick={handleGuestAccess}
+            className="w-full"
             variant="secondary"
           >
             <User className="mr-2 h-5 w-5" />
             Continue as Guest
           </Button>
-          
+
         </CardContent>
       </Card>
       <p className="mt-8 text-center text-sm text-muted-foreground">
@@ -310,5 +324,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
-    
