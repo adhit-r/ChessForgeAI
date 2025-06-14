@@ -1,7 +1,7 @@
 import type {Config} from 'tailwindcss';
 
 export default {
-  darkMode: ['class'], // Maintained as 'class' even if default is dark, for ShadCN compatibility. HTML tag has `className="dark"`.
+  darkMode: ['class'], 
   content: [
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
@@ -10,8 +10,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        body: ['Inter', 'sans-serif'],
-        headline: ['Inter', 'sans-serif'],
+        body: ['"Open Sans"', 'sans-serif'],
+        headline: ['"Open Sans"', 'sans-serif'],
         code: ['"Source Code Pro"', 'monospace'],
       },
       colors: {
@@ -70,6 +70,11 @@ export default {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
+        xl: 'calc(var(--radius) + 4px)', // For 12px radius, if 0.5rem is 8px
+        '2xl': 'calc(var(--radius) + 8px)', // For 16px radius
+      },
+      boxShadow: {
+        'soft-ui': '0px 20px 27px rgba(0, 0, 0, 0.05)',
       },
       keyframes: {
         'accordion-down': {
@@ -93,15 +98,6 @@ export default {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
       },
-      // Adding backdrop blur utilities if not already present by default (they usually are)
-      // Forcing it here for clarity, though Tailwind JIT usually picks it up.
-      backdropBlur: {
-        xs: '2px',
-        sm: '4px',
-        md: '8px',
-        lg: '12px',
-        xl: '16px',
-      }
     },
   },
   plugins: [require('tailwindcss-animate')],

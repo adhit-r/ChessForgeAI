@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -10,10 +11,10 @@ interface ChessBoardPlaceholderProps {
 
 const ChessBoardPlaceholder: React.FC<ChessBoardPlaceholderProps> = ({ fen }) => {
   return (
-    <Card className="glass-card aspect-square w-full max-w-md mx-auto shadow-2xl">
+    <Card className="bg-card rounded-xl shadow-soft-ui aspect-square w-full max-w-md mx-auto">
       <CardContent className="p-2 sm:p-4 flex flex-col items-center justify-center h-full">
         <Image 
-          src="https://placehold.co/400x400.png/1E1A36/FFFFFF?text=Chess+Board" 
+          src="https://placehold.co/400x400.png/FFFFFF/252F40?text=Chess+Board" 
           alt="Chess Board Placeholder" 
           width={400} 
           height={400}
@@ -21,7 +22,7 @@ const ChessBoardPlaceholder: React.FC<ChessBoardPlaceholderProps> = ({ fen }) =>
           data-ai-hint="chess board"
         />
         {fen && (
-          <p className="mt-2 text-xs font-code text-center text-muted-foreground p-2 bg-background/50 rounded-md w-full break-all">
+          <p className="mt-2 text-xs font-code text-center text-muted-foreground p-2 bg-muted/50 rounded-md w-full break-all">
             FEN: {fen}
           </p>
         )}

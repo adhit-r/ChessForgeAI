@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -19,7 +20,7 @@ import EvaluationBar from './evaluation-bar';
 
 const moveSchema = z.object({
   userMove: z.string().min(2, { message: "Move must be at least 2 characters (e.g., e4)." })
-    .regex(/^[a-h][1-8][a-h][1-8]([qrbn])?$/, { message: "Invalid move format (e.g., e2e4, e7e8q)." }), // Basic UCI format for simplicity
+    .regex(/^[a-h][1-8][a-h][1-8]([qrbn])?$/, { message: "Invalid move format (e.g., e2e4, e7e8q)." }),
 });
 type MoveFormValues = z.infer<typeof moveSchema>;
 
@@ -30,7 +31,6 @@ interface ChatMessage {
   suggestion?: string;
 }
 
-// Sample PGN and FEN for demonstration
 const sampleGameHistory = `
 [Event "Casual Game"]
 [Site "Local"]
@@ -51,7 +51,7 @@ export default function TrainingBotInterface() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [currentFen, setCurrentFen] = useState(initialFen);
   const [moveNumber, setMoveNumber] = useState(1);
-  const [botEvaluation, setBotEvaluation] = useState(0); // For the eval bar
+  const [botEvaluation, setBotEvaluation] = useState(0);
 
   const moveForm = useForm<MoveFormValues>({
     resolver: zodResolver(moveSchema),
@@ -59,7 +59,6 @@ export default function TrainingBotInterface() {
   });
 
   useEffect(() => {
-    // Initial message
     setChatMessages([{ sender: 'system', text: "Game started. Enter your move in UCI format (e.g., e2e4)." }]);
   }, []);
 
@@ -70,11 +69,9 @@ export default function TrainingBotInterface() {
     moveForm.reset();
 
     try {
-      // In a real app, update currentFen based on userMove
-      // For now, we'll use a static FEN or pass it along
       const botInput: TrainingBotInput = {
-        gameHistory: sampleGameHistory, // This should be dynamically built
-        currentBoardState: currentFen, // This should be updated after each move
+        gameHistory: sampleGameHistory,
+        currentBoardState: currentFen,
         moveNumber: moveNumber,
       };
 
@@ -91,8 +88,6 @@ export default function TrainingBotInterface() {
       ]);
       setBotEvaluation(response.evaluation);
       setMoveNumber(prev => prev + 1);
-      // Here you would update currentFen based on bot's suggestedMove (if it makes a move) or user's next move.
-      // For this example, we are not updating the FEN to keep it simple.
 
     } catch (error) {
       console.error("Error interacting with training bot:", error);
@@ -106,7 +101,7 @@ export default function TrainingBotInterface() {
 
   return (
     <div className="space-y-6">
-      <Card className="glass-card">
+      <Card className="bg-card rounded-xl shadow-soft-ui">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Bot size={24} /> Training Bot Interaction
@@ -118,12 +113,12 @@ export default function TrainingBotInterface() {
         </CardHeader>
         <CardContent>
           <EvaluationBar evaluation={botEvaluation} />
-          <ScrollArea className="h-[300px] w-full rounded-md border border-border/30 p-4 mt-4 mb-4 bg-background/20">
+          <ScrollArea className="h-[300px] w-full rounded-md border border-border/30 p-4 mt-4 mb-4 bg-muted/20">
             {chatMessages.map((msg, index) => (
               <div key={index} className={`mb-3 p-3 rounded-lg max-w-[85%] ${
-                msg.sender === 'user' ? 'ml-auto bg-primary/80 text-primary-foreground' : 
-                msg.sender === 'bot' ? 'mr-auto bg-accent/80 text-accent-foreground' : 
-                'mx-auto bg-muted/80 text-muted-foreground text-xs text-center italic'
+                msg.sender === 'user' ? 'ml-auto bg-primary text-primary-foreground' : 
+                msg.sender === 'bot' ? 'mr-auto bg-accent text-accent-foreground' : 
+                'mx-auto bg-muted text-muted-foreground text-xs text-center italic'
               }`}>
                 <p className="text-sm">{msg.text}</p>
                 {msg.sender === 'bot' && msg.evaluation !== undefined && (
@@ -155,7 +150,7 @@ export default function TrainingBotInterface() {
           </Form>
         </CardContent>
       </Card>
-      <Card className="glass-card">
+      <Card className="bg-card rounded-xl shadow-soft-ui">
         <CardHeader>
             <CardTitle className="flex items-center gap-2"><Brain size={20}/>Bot Thoughts (Mock)</CardTitle>
         </CardHeader>

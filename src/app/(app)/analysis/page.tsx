@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from 'react';
@@ -75,19 +76,13 @@ export default function AnalysisPage() {
     setIsLoading(true);
     setAnalysisResult(null);
     setImprovementTips(null);
-    // Simulate API call for username import
     await new Promise(resolve => setTimeout(resolve, 1500));
     setIsLoading(false);
-    // This is a placeholder. In a real app, you'd fetch PGNs here.
-    // For now, show a message.
     toast({
       title: "Feature In Development",
       description: `Importing games for ${data.username} from ${data.platform} is not yet implemented. Please use PGN upload.`,
       variant: "default",
     });
-    // Optionally, you could populate a sample PGN and analyze it:
-    // const samplePgn = "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6"; // Example PGN
-    // handlePgnSubmit({ pgn: samplePgn });
   };
 
   return (
@@ -100,7 +95,7 @@ export default function AnalysisPage() {
           <TabsTrigger value="pgn">Upload PGN</TabsTrigger>
         </TabsList>
         <TabsContent value="username">
-          <Card className="glass-card">
+          <Card className="bg-card rounded-xl shadow-soft-ui">
             <CardHeader>
               <CardTitle>Import from Chess.com or Lichess</CardTitle>
               <CardDescription>Enter your username to import recent games (feature in development).</CardDescription>
@@ -152,7 +147,7 @@ export default function AnalysisPage() {
           </Card>
         </TabsContent>
         <TabsContent value="pgn">
-          <Card className="glass-card">
+          <Card className="bg-card rounded-xl shadow-soft-ui">
             <CardHeader>
               <CardTitle>Upload PGN</CardTitle>
               <CardDescription>Paste your game data in PGN format below.</CardDescription>
@@ -197,7 +192,7 @@ export default function AnalysisPage() {
       )}
 
       {analysisResult && (
-        <Card className="glass-card mt-8">
+        <Card className="bg-card rounded-xl shadow-soft-ui mt-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><CheckCircle className="text-green-500" /> Game Analysis Complete</CardTitle>
           </CardHeader>
@@ -205,7 +200,7 @@ export default function AnalysisPage() {
             <Accordion type="single" collapsible defaultValue="analysis">
               <AccordionItem value="analysis">
                 <AccordionTrigger className="text-lg font-semibold">Detailed Analysis</AccordionTrigger>
-                <AccordionContent className="prose prose-sm prose-invert max-w-none whitespace-pre-wrap p-4 bg-background/30 rounded-md font-code">
+                <AccordionContent className="prose prose-sm prose-neutral dark:prose-invert max-w-none whitespace-pre-wrap p-4 bg-muted/30 rounded-md font-code">
                   {analysisResult.analysis}
                 </AccordionContent>
               </AccordionItem>
@@ -215,17 +210,14 @@ export default function AnalysisPage() {
       )}
 
       {improvementTips && improvementTips.tips.length > 0 && (
-        <Card className="glass-card mt-8">
+        <Card className="bg-card rounded-xl shadow-soft-ui mt-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Lightbulb className="text-yellow-400" /> Improvement Suggestions</CardTitle>
           </CardHeader>
           <CardContent>
             <ul className="space-y-3">
               {improvementTips.tips.map((tip, index) => (
-                <li key={index} className="p-4 bg-background/30 rounded-md border border-border/50">
-                  <p className="text-foreground">{tip.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-accent hover:underline">$1 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-external-link inline-block"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>')}</p>
-                  {/* Basic link parsing, for complex markdown a library would be better */}
-                  {/* For now, this regex handles simple [text](url) links */}
+                <li key={index} className="p-4 bg-muted/30 rounded-md border border-border/50">
                   <span dangerouslySetInnerHTML={{ __html: tip.replace(/\[(.*?)\]\((.*?)\)/g, (match, text, url) => `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-accent hover:underline">${text} <span role="img" aria-label="external link" class="inline-block align-middle"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-external-link h-3 w-3"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></span></a>`) }}></span>
                 </li>
               ))}
@@ -235,7 +227,7 @@ export default function AnalysisPage() {
       )}
 
       {!isLoading && !analysisResult && !improvementTips && (
-         <Card className="glass-card mt-8">
+         <Card className="bg-card rounded-xl shadow-soft-ui mt-8">
           <CardContent className="p-8 text-center">
             <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground" />
             <h3 className="mt-4 text-lg font-medium text-foreground">No Analysis Data</h3>

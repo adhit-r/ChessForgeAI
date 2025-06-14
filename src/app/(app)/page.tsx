@@ -1,3 +1,4 @@
+
 "use client";
 
 import PageTitle from "@/components/common/page-title";
@@ -57,7 +58,7 @@ export default function DashboardPage() {
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {insights.map((insight) => (
-          <Card key={insight.id} className="glass-card">
+          <Card key={insight.id} className="bg-card rounded-xl shadow-soft-ui">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">{insight.title}</CardTitle>
               {insight.icon}
@@ -71,19 +72,18 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="glass-card">
+        <Card className="bg-card rounded-xl shadow-soft-ui">
           <CardHeader>
             <CardTitle>Performance Trend</CardTitle>
             <CardDescription>Your ELO rating over the last 30 games (mock data).</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px] flex items-center justify-center">
-              {/* Placeholder for chart, e.g. using Recharts if installed or simple image */}
-              <Image src="https://placehold.co/600x300.png/1E1A36/FFFFFF?text=Performance+Chart" alt="Performance Chart Placeholder" data-ai-hint="graph performance" width={600} height={300} className="rounded-md" />
+            <div className="h-[300px] flex items-center justify-center bg-muted/30 rounded-lg">
+              <Image src="https://placehold.co/600x300.png/F8F9FA/252F40?text=Performance+Chart" alt="Performance Chart Placeholder" data-ai-hint="graph performance" width={600} height={300} className="rounded-md opacity-70" />
             </div>
           </CardContent>
         </Card>
-        <Card className="glass-card">
+        <Card className="bg-card rounded-xl shadow-soft-ui">
           <CardHeader>
             <CardTitle>Recent Activity</CardTitle>
             <CardDescription>Summary of your latest analyzed games.</CardDescription>
@@ -94,15 +94,15 @@ export default function DashboardPage() {
               {id: 2, opponent: "ChessMasterY", result: "Loss", opening: "Caro-Kann"},
               {id: 3, opponent: "RookieZ", result: "Draw", opening: "Italian Game"},
             ].map(game => (
-              <div key={game.id} className="flex justify-between items-center p-3 bg-background/30 rounded-md">
+              <div key={game.id} className="flex justify-between items-center p-3 bg-muted/30 rounded-md">
                 <div>
                   <p className="font-medium text-foreground">vs {game.opponent}</p>
                   <p className="text-xs text-muted-foreground">{game.opening}</p>
                 </div>
                 <span className={`px-2 py-1 text-xs rounded-full ${
-                  game.result === "Win" ? "bg-green-500/20 text-green-400" :
-                  game.result === "Loss" ? "bg-red-500/20 text-red-400" :
-                  "bg-yellow-500/20 text-yellow-400"
+                  game.result === "Win" ? "bg-green-500/20 text-green-400" : // TODO: Use theme colors
+                  game.result === "Loss" ? "bg-red-500/20 text-red-400" : // TODO: Use theme colors
+                  "bg-yellow-500/20 text-yellow-400" // TODO: Use theme colors
                 }`}>
                   {game.result}
                 </span>
