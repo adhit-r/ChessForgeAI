@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Bot, LogIn, User } from 'lucide-react';
 import { auth } from '@/lib/firebase';
-import { GoogleAuthProvider, signInWithPopup, UserCredential, signInAnonymously } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup, type UserCredential, signInAnonymously } from 'firebase/auth';
 import { useToast } from "@/hooks/use-toast";
 
 // Helper for PKCE
@@ -103,7 +103,6 @@ export default function LoginPage() {
             // mint a Firebase Custom Token, and return it to the client.
             // Then, on the client: signInWithCustomToken(auth, firebaseCustomToken);
             // For now, let's simulate a successful login and redirect
-            // This part needs to be replaced with actual Firebase Custom Token sign-in
             toast({ title: "Lichess Login (Simulated)", description: "Next: Firebase Custom Token flow."});
             // router.push('/'); // Example redirect after Firebase custom auth
           } else {
@@ -256,3 +255,4 @@ export default function LoginPage() {
     </div>
   );
 }
+
