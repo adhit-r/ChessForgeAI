@@ -20,7 +20,6 @@ function generateRandomString(len: number): string {
   if (typeof window !== 'undefined' && window.crypto) {
     window.crypto.getRandomValues(arr);
   } else {
-    // Fallback for environments without window.crypto (less secure)
     for (let i = 0; i < arr.length; i++) {
       arr[i] = Math.floor(Math.random() * 256);
     }
@@ -34,9 +33,6 @@ async function sha256(plain: string): Promise<ArrayBuffer> {
   if (typeof window !== 'undefined' && window.crypto?.subtle) {
     return window.crypto.subtle.digest('SHA-256', data);
   }
-  // Fallback for environments without window.crypto.subtle (e.g. Node.js for testing, or very old browsers)
-  // This will likely only be hit if running in a non-browser environment unexpectedly or very old browser.
-  // For server-side operations, native crypto module is preferred.
   console.warn("SHA256: window.crypto.subtle not available, using fallback (less ideal for client-side).");
   const { createHash } = await import('crypto');
   return createHash('sha256').update(data).digest().buffer;
@@ -77,7 +73,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     const authCode = searchParams.get('code');
-    const state = searchParams.get('state'); // Lichess doesn't use state in PKCE from their examples, but good to log if present
+    const state = searchParams.get('state'); 
     
     console.log("Lichess Login: Login page useEffect triggered. Auth Code:", authCode, "State:", state, "Lichess Redirect URI ready:", !!lichessRedirectUri);
 
@@ -100,13 +96,13 @@ export default function LoginPage() {
         try {
           if (!LICHESS_CLIENT_ID) {
             console.error("Lichess Configuration Error: Client ID (NEXT_PUBLIC_LICHESS_CLIENT_ID) is not configured in .env file.");
-            toast({ title: "Lichess Configuration Error", description: "Lichess Client ID is missing. Please set NEXT_PUBLIC_LICHESS_CLIENT_ID in your .env file.", variant: "destructive" });
+            toast({ title: "Lichess Configuration Error", description: "Lichess Client ID (NEXT_PUBLIC_LICHESS_CLIENT_ID) is missing. Please set it in your .env file.", variant: "destructive" });
             return;
           }
           const params = new URLSearchParams();
           params.append('grant_type', 'authorization_code');
           params.append('code', code);
-          params.append('redirect_uri', lichessRedirectUri); // This MUST match what Lichess has for your client & what you sent.
+          params.append('redirect_uri', lichessRedirectUri); 
           params.append('client_id', LICHESS_CLIENT_ID);
           params.append('code_verifier', verifier);
 
@@ -173,7 +169,7 @@ export default function LoginPage() {
         if (error.code === 'auth/unauthorized-domain') {
           toast({ title: "Google Sign-In Error", description: "This domain is not authorized. Please check your Firebase project's 'Authorized domains' settings in the Firebase Console.", variant: "destructive", duration: 10000});
         } else if (error.code === 'auth/popup-closed-by-user') {
-          toast({ title: "Google Sign-In Error", description: "Popup closed by user or blocked. Check pop-up blockers, third-party cookie settings, browser extensions, or if the domain is authorized in Firebase Console.", variant: "destructive", duration: 15000 });
+          toast({ title: "Google Sign-In Error", description: "Popup closed by user or blocked. Check pop-up blockers, third-party cookie settings, browser extensions, or if the domain is authorized in Firebase Console. Ensure 'localhost' (and any preview domain) is in Firebase Auth 'Authorized Domains'.", variant: "destructive", duration: 15000 });
         } else {
           toast({ title: "Google Sign-In Error", description: error.message || "Could not sign in with Google.", variant: "destructive", duration: 10000});
         }
@@ -189,6 +185,7 @@ export default function LoginPage() {
         console.error("Lichess Login: Lichess login attempted but lichessRedirectUri is not set in state:", lichessRedirectUri);
         return;
       }
+      console.log("Lichess Login: Initiating Lichess login with Client ID:", LICHESS_CLIENT_ID, "and Redirect URI:", lichessRedirectUri);
       try {
         const codeVerifier = generateRandomString(128);
         sessionStorage.setItem('lichessCodeVerifier', codeVerifier);
@@ -205,8 +202,6 @@ export default function LoginPage() {
         authUrl.searchParams.set('scope', LICHESS_SCOPES);
         authUrl.searchParams.set('code_challenge_method', 'S256');
         authUrl.searchParams.set('code_challenge', codeChallenge);
-        // Lichess doesn't typically use 'state' for PKCE but if needed:
-        // authUrl.searchParams.set('state', generateRandomString(32)); 
         
         console.log("Lichess Login: Redirecting to Lichess auth URL:", authUrl.toString());
         window.location.href = authUrl.toString();
@@ -224,12 +219,15 @@ export default function LoginPage() {
       if (userCredential.user) {
         router.push('/'); 
       } else {
-        // This case should be rare with signInAnonymously if it doesn't throw
         toast({ title: "Guest Access Issue", description: "Could not complete guest sign-in fully, user object not found.", variant: "destructive"});
       }
     } catch (error: any) {
       console.error("Anonymous Sign-In Error:", error);
-      toast({ title: "Guest Access Error", description: error.message || "Could not sign in as guest.", variant: "destructive"});
+       if (error.code === 'auth/admin-restricted-operation') {
+        toast({ title: "Guest Access Error", description: "Anonymous sign-in is not enabled in your Firebase project. Please enable it in the Firebase Console (Authentication > Sign-in method).", variant: "destructive", duration: 10000 });
+      } else {
+        toast({ title: "Guest Access Error", description: error.message || "Could not sign in as guest.", variant: "destructive"});
+      }
     }
   };
 
@@ -313,3 +311,4 @@ export default function LoginPage() {
   );
 }
 
+    
