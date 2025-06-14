@@ -17,7 +17,7 @@ const firebaseConfig = {
 if (typeof window !== 'undefined') {
   console.log("Attempting to use Firebase API Key:", process.env.NEXT_PUBLIC_FIREBASE_API_KEY ? "Key Present (see next log)" : "Key NOT Present or Empty");
   if (process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
-    console.log("Firebase API Key:", process.env.NEXT_PUBLIC_FIREBASE_API_KEY);
+    console.log("Firebase API Key value:", process.env.NEXT_PUBLIC_FIREBASE_API_KEY);
   }
 }
 
@@ -34,3 +34,5 @@ const auth: Auth = getAuth(app);
 // const db = getFirestore(app); // Uncomment for Firestore
 
 export { app, auth /*, db */ };
+
+    
