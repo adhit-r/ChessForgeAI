@@ -28,7 +28,7 @@ export async function analyzeChessGame(input: AnalyzeChessGameInput): Promise<An
 
 const analyzeChessGamePrompt = ai.definePrompt({
   name: 'analyzeChessGamePrompt',
-  model: 'models/gemini-1.0-pro',
+  model: 'gemini-pro', // Changed model name
   input: {schema: AnalyzeChessGameInputSchema},
   output: {schema: AnalyzeChessGameOutputSchema},
   prompt: `You are an expert chess coach. Analyze the following chess game and identify blunders, mistakes, and inaccuracies.

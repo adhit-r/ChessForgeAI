@@ -10,7 +10,7 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import {z}from 'genkit';
 
 const TrainingBotInputSchema = z.object({
   gameHistory: z
@@ -36,7 +36,7 @@ export async function analyzeGameAndSuggestMove(
 
 const prompt = ai.definePrompt({
   name: 'trainingBotPrompt',
-  model: 'models/gemini-1.0-pro',
+  model: 'gemini-pro', // Changed model name
   input: {schema: TrainingBotInputSchema},
   output: {schema: TrainingBotOutputSchema},
   prompt: `You are a chess training bot that analyzes the provided game history and the current board state to suggest the best move for the user.

@@ -9,7 +9,7 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import {z}from 'genkit';
 
 const FetchGameHistoryInputSchema = z.object({
   platform: z.enum(["lichess", "chesscom", "chess24"]).describe('The chess platform (e.g., "lichess", "chesscom", "chess24").'),
@@ -58,10 +58,10 @@ const mockPgnData = [
 // This prompt is now more of a fallback or for platforms not directly implemented.
 const prompt = ai.definePrompt({
   name: 'fetchGameHistoryPrompt',
-  model: 'models/gemini-1.0-pro',
+  model: 'gemini-pro', // Changed model name
   input: {schema: FetchGameHistoryInputSchema},
   output: {schema: FetchGameHistoryOutputSchema},
-  prompt: `You are a chess data provider. 
+  prompt: `You are a chess data provider.
 Given a username "{{username}}" and platform "{{platform}}", provide a list of their recent game PGNs up to {{maxGames}}.
 If the platform is "lichess", return 2 mock Lichess games.
 If the platform is "chesscom", return 1 mock Chess.com game.
