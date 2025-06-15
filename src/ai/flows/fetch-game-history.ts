@@ -14,6 +14,7 @@ import {z} from 'genkit';
 const FetchGameHistoryInputSchema = z.object({
   platform: z.enum(["lichess", "chesscom", "chess24"]).describe('The chess platform (e.g., "lichess", "chesscom", "chess24").'),
   username: z.string().describe('The username on the specified platform.'),
+  maxGames: z.number().optional().default(10).describe('Maximum number of games to fetch.'),
 });
 export type FetchGameHistoryInput = z.infer<typeof FetchGameHistoryInputSchema>;
 
@@ -26,7 +27,7 @@ export async function fetchGameHistory(input: FetchGameHistoryInput): Promise<Fe
   return fetchGameHistoryFlow(input);
 }
 
-// Mock PGN data
+// Mock PGN data (retained for non-Lichess platforms or as fallback)
 const mockPgnData = [
   `[Event "Rated Blitz game"]
 [Site "Lichess.org"]
@@ -54,13 +55,13 @@ const mockPgnData = [
 1. d4 Nf6 2. c4 e6 3. Nc3 Bb4 4. Qc2 O-O 5. a3 Bxc3+ 6. Qxc3 b6 7. Bg5 Bb7 8. e3 d6 9. Ne2 Nbd7 10. Qd3 h6 11. Bh4 c5 12. Nc3 Rc8 13. d5 exd5 14. cxd5 Re8 15. Be2 Ne5 16. Qd2 Ng6 17. Bg3 a6 18. O-O b5 19. Rfd1 Qb6 20. b4 c4 21. Qd4 Qxd4 22. Rxd4 Rcd8 23. a4 bxa4 24. Bxc4 Rc8 25. Ra3 Ne7 26. e4 Ng6 27. f3 Ne5 28. Bxe5 Rxe5 29. Nxa4 Nd7 30. Rdc3 Ree8 31. Be2 Rxc3 32. Rxc3 Rc8 33. Rxc8+ Bxc8 34. Kf2 Kf8 35. Ke3 Ke7 36. Kd4 Kd8 37. f4 f6 38. g3 Kc7 39. Bg4 Nb6 40. Nxb6 Kxb6 0-1`
 ];
 
-
+// This prompt is now more of a fallback or for platforms not directly implemented.
 const prompt = ai.definePrompt({
   name: 'fetchGameHistoryPrompt',
   input: {schema: FetchGameHistoryInputSchema},
   output: {schema: FetchGameHistoryOutputSchema},
   prompt: `You are a chess data provider. 
-Given a username "{{username}}" and platform "{{platform}}", provide a list of their recent game PGNs.
+Given a username "{{username}}" and platform "{{platform}}", provide a list of their recent game PGNs up to {{maxGames}}.
 If the platform is "lichess", return 2 mock Lichess games.
 If the platform is "chesscom", return 1 mock Chess.com game.
 If the platform is "chess24", return 1 mock Chess24 game.
@@ -86,23 +87,44 @@ const fetchGameHistoryFlow = ai.defineFlow(
     outputSchema: FetchGameHistoryOutputSchema,
   },
   async (input) => {
-    // In a real scenario, this is where you'd call external APIs.
-    // For now, we return mock data based on the prompt's instructions.
-    // The prompt itself is mostly for demonstration if we were to use a model that
-    // directly calls tools or generates structured data. Here, we simulate.
-
     if (input.platform === "lichess") {
-      return { games: [mockPgnData[0], mockPgnData[1]] };
+      try {
+        console.log(`Fetching Lichess games for ${input.username}, max: ${input.maxGames}`);
+        const response = await fetch(
+          `https://lichess.org/api/games/user/${input.username}?max=${input.maxGames}&pgns=true&literate=true&tags=true&opening=true`,
+          {
+            headers: { 'Accept': 'application/x-nd-pgn' }
+          }
+        );
+
+        if (!response.ok) {
+          console.error(`Lichess API error for ${input.username}: ${response.status} ${response.statusText}`);
+          const errorBody = await response.text();
+          console.error("Lichess API error body:", errorBody);
+          return { games: [] };
+        }
+
+        const textData = await response.text();
+        // Each game PGN is on a new line. Empty lines or incomplete data should be filtered.
+        const games = textData.trim().split('\n').filter(pgn => pgn.startsWith('[Event') && pgn.length > 20);
+        console.log(`Fetched ${games.length} games from Lichess for ${input.username}`);
+        return { games };
+
+      } catch (error) {
+        console.error(`Failed to fetch games from Lichess for ${input.username}:`, error);
+        return { games: [] };
+      }
     } else if (input.platform === "chesscom") {
-      return { games: [mockPgnData[1]] };
+      // Return mock data for Chess.com
+      return { games: [mockPgnData[1]] }; // Example, adjust as needed
     } else if (input.platform === "chess24") {
-      // Add a mock chess24 game if desired
+      // Return mock data for Chess24
        return { games: [`[Event "Mock Chess24 Game"]\n[Site "Chess24"]\n[Date "2024.01.03"]\n[White "${input.username}"]\n[Black "OpponentC24"]\n[Result "1/2-1/2"]\n1. e4 c5 *`] };
     }
-    // Fallback for the LLM to attempt generation or return empty
-    // const { output } = await prompt(input);
-    // return output!;
-    // Forcing mock data if prompt doesn't execute as expected in this simplified version
+    
+    // Fallback for other cases or if a model-based approach was intended for other platforms
+    // For now, returning empty for unhandled platforms to avoid relying on the LLM prompt for this.
+    console.warn(`Platform ${input.platform} not directly implemented for game fetching. Returning empty array.`);
     return { games: [] };
   }
 );

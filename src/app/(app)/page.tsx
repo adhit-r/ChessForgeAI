@@ -6,25 +6,29 @@ import Link from 'next/link';
 import PageTitle from "@/components/common/page-title";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
-import { BarChart3, BrainCircuit, LayoutDashboard, AlertTriangle, TrendingUp, TrendingDown, Puzzle, Loader2, Info } from "lucide-react";
+import { BarChart3, BrainCircuit, LayoutDashboard, AlertTriangle, TrendingUp, TrendingDown, Puzzle, Loader2, Info, UserSearch, FileSignature } from "lucide-react";
 import Image from 'next/image';
 import { useToast } from "@/hooks/use-toast";
+import { Input } from '@/components/ui/input';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { useForm, type SubmitHandler } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
 
-import { fetchGameHistory } from '@/ai/flows/fetch-game-history';
+import { fetchGameHistory, FetchGameHistoryInput } from '@/ai/flows/fetch-game-history';
 import { deepAnalyzeGameMetrics, DeepAnalyzeGameMetricsOutput } from '@/ai/flows/deep-analyze-game-metrics';
 
 interface Insight {
   id: string;
   title: string;
-  value: string; // Main text for the insight card, could be training suggestion text
+  value: string; 
   icon: React.ReactNode;
-  description?: string; // Detailed description of the weakness
-  color?: string; // Tailwind color class e.g. text-destructive
-  trainingLink?: string; // Link to a training page
+  description?: string; 
+  color?: string; 
+  trainingLink?: string; 
   severity?: "high" | "medium" | "low";
 }
 
-// Helper function to get Lucide icon component from string name
 function getLucideIcon(iconName?: string): React.ReactNode {
   const icons: { [key: string]: React.ReactNode } = {
     AlertTriangle: <AlertTriangle size={24} />,
@@ -38,107 +42,177 @@ function getLucideIcon(iconName?: string): React.ReactNode {
   if (iconName && icons[iconName]) {
     return icons[iconName];
   }
-  return <Info size={24} />; // Default icon
+  return <Info size={24} />; 
 }
 
 const defaultInsights: Insight[] = [
   {
-    id: 'placeholder1',
-    title: "Loading Insights...",
-    value: "Analyzing your game history.",
-    icon: <Loader2 className="animate-spin" size={24} />,
-    description: "Please wait while we generate personalized tips.",
+    id: 'placeholder_initial',
+    title: "Welcome to ChessForgeAI!",
+    value: "Analyze your games to get personalized insights.",
+    icon: <FileSignature size={24}/>,
+    description: "Use the form below to fetch your Lichess game history or import games on the Analysis page.",
   },
 ];
 
+const lichessUsernameSchema = z.object({
+  lichessUsername: z.string().min(2, "Username must be at least 2 characters.").max(50, "Username too long."),
+});
+type LichessUsernameFormValues = z.infer<typeof lichessUsernameSchema>;
 
 export default function DashboardPage() {
   const { toast } = useToast();
   const [analysisInsights, setAnalysisInsights] = useState<Insight[]>(defaultInsights);
-  const [isLoadingInsights, setIsLoadingInsights] = useState(true);
-  const [analysisSummary, setAnalysisSummary] = useState<string | null>(null);
+  const [isLoadingInsights, setIsLoadingInsights] = useState(true); // For initial load
+  const [analysisSummary, setAnalysisSummary] = useState<string | null>("Enter your Lichess username below or use the Analysis page to get started.");
+  const [isFetchingLichessGames, setIsFetchingLichessGames] = useState(false);
+
+  const lichessForm = useForm<LichessUsernameFormValues>({
+    resolver: zodResolver(lichessUsernameSchema),
+    defaultValues: { lichessUsername: "" },
+  });
+
+  const processAndDisplayAnalysis = (analysisOutput: DeepAnalyzeGameMetricsOutput, username: string) => {
+    setAnalysisSummary(analysisOutput.overallSummary || `Analysis complete for ${username}.`);
+    const newInsights = analysisOutput.primaryWeaknesses.map((weakness, index) => ({
+      id: weakness.name.toLowerCase().replace(/\s+/g, '_') || `weakness-${index}`,
+      title: weakness.name,
+      value: weakness.trainingSuggestion.text,
+      icon: getLucideIcon(weakness.icon),
+      description: weakness.description,
+      severity: weakness.severity,
+      trainingLink: weakness.trainingSuggestion.link,
+      color: weakness.severity === 'high' ? 'text-destructive' : weakness.severity === 'medium' ? 'text-yellow-500' : 'text-green-500',
+    }));
+    setAnalysisInsights(newInsights.length > 0 ? newInsights : [{
+      id: 'no_specific_weaknesses',
+      title: "General Review",
+      value: "Continue practicing and analyzing your games!",
+      icon: getLucideIcon("Info"),
+      description: `No specific primary weaknesses identified for ${username}, or analysis is general. Keep up the good work!`,
+    }]);
+  };
+
+  const onFetchLichessGamesSubmit: SubmitHandler<LichessUsernameFormValues> = async (data) => {
+    setIsFetchingLichessGames(true);
+    setAnalysisSummary("Fetching your Lichess game history...");
+    setAnalysisInsights([{
+      id: 'loading_lichess',
+      title: "Fetching Lichess Games...",
+      value: `Looking for games for ${data.lichessUsername}.`,
+      icon: <Loader2 className="animate-spin" size={24} />,
+      description: "This might take a moment.",
+    }]);
+
+    try {
+      const historyInput: FetchGameHistoryInput = { platform: "lichess", username: data.lichessUsername, maxGames: 10 };
+      const historyOutput = await fetchGameHistory(historyInput);
+
+      if (historyOutput.games && historyOutput.games.length > 0) {
+        toast({
+          title: "Games Fetched!",
+          description: `Found ${historyOutput.games.length} games for ${data.lichessUsername}. Now analyzing...`,
+        });
+        setAnalysisSummary(`Analyzing ${historyOutput.games.length} games for ${data.lichessUsername}...`);
+        setAnalysisInsights([{
+          id: 'analyzing_lichess',
+          title: "Analyzing Games...",
+          value: `Processing ${historyOutput.games.length} games.`,
+          icon: <Loader2 className="animate-spin" size={24} />,
+          description: "Generating insights based on your play.",
+        }]);
+
+        const deepAnalysis = await deepAnalyzeGameMetrics({ gamePgns: historyOutput.games, playerUsername: data.lichessUsername });
+        processAndDisplayAnalysis(deepAnalysis, data.lichessUsername);
+        toast({
+          title: "Analysis Complete",
+          description: `Personalized insights for ${data.lichessUsername} are ready.`,
+        });
+
+      } else {
+        toast({
+          title: "No Games Found",
+          description: `Could not find recent games for ${data.lichessUsername} on Lichess or an error occurred.`,
+          variant: "default", 
+        });
+        setAnalysisSummary(`No Lichess games found for ${data.lichessUsername}. Try checking the username or play some games!`);
+        setAnalysisInsights([{
+          id: 'no_lichess_games',
+          title: "No Lichess Games",
+          value: "Please check the username or try again later.",
+          icon: getLucideIcon("Info"),
+          description: "Ensure the Lichess profile is public and has recent games.",
+        }]);
+      }
+    } catch (error) {
+      console.error("Error fetching/analyzing Lichess history:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      toast({
+        title: "Error",
+        description: `Failed to process Lichess history for ${data.lichessUsername}. ${errorMessage}`,
+        variant: "destructive",
+      });
+      setAnalysisSummary(`Error processing games for ${data.lichessUsername}.`);
+      setAnalysisInsights([{
+        id: 'error_lichess_processing',
+        title: "Processing Error",
+        value: "Could not fetch or analyze Lichess games.",
+        icon: getLucideIcon("AlertTriangle"),
+        description: errorMessage,
+      }]);
+    } finally {
+      setIsFetchingLichessGames(false);
+    }
+  };
+
 
   useEffect(() => {
-    const loadDashboardData = async () => {
+    const loadInitialDashboard = async () => {
       setIsLoadingInsights(true);
-      setAnalysisSummary(null);
+      // This is where you might check auth status and load user-specific data
+      // For now, we just set the default state and let the user trigger Lichess fetch.
       setAnalysisInsights(defaultInsights);
-
-      try {
-        const gameHistoryOutput = await fetchGameHistory({ platform: "lichess", username: "MockDashboardUser" });
-
-        if (gameHistoryOutput.games && gameHistoryOutput.games.length > 0) {
-          const deepAnalysis = await deepAnalyzeGameMetrics({ gamePgns: gameHistoryOutput.games, playerUsername: "MockDashboardUser" });
-
-          if (deepAnalysis && deepAnalysis.primaryWeaknesses) {
-            setAnalysisSummary(deepAnalysis.overallSummary);
-            const newInsights = deepAnalysis.primaryWeaknesses.map((weakness, index) => ({
-              id: weakness.name.toLowerCase().replace(/\s+/g, '_') || `weakness-${index}`,
-              title: weakness.name,
-              value: weakness.trainingSuggestion.text,
-              icon: getLucideIcon(weakness.icon),
-              description: weakness.description,
-              severity: weakness.severity,
-              trainingLink: weakness.trainingSuggestion.link,
-              color: weakness.severity === 'high' ? 'text-destructive' : weakness.severity === 'medium' ? 'text-yellow-500' : 'text-green-500',
-            }));
-            setAnalysisInsights(newInsights.length > 0 ? newInsights : [{
-              id: 'no_specific_weaknesses',
-              title: "General Review",
-              value: "Continue practicing and analyzing your games!",
-              icon: getLucideIcon("Info"),
-              description: "No specific primary weaknesses identified from recent games, or analysis is general. Keep up the good work!",
-            }]);
-          } else {
-            setAnalysisSummary("AI analysis could not identify specific areas. Try playing more games or import them for analysis.");
-            setAnalysisInsights([{
-              id: 'analysis_unavailable',
-              title: "Analysis Incomplete",
-              value: "Detailed insights could not be generated at this time.",
-              icon: getLucideIcon("AlertTriangle"),
-              description: "Try importing more games for a deeper analysis.",
-            }]);
-          }
-        } else {
-          setAnalysisSummary("No game history found. Import games in the 'Game Analysis' section to get personalized insights.");
-           setAnalysisInsights([{
-              id: 'no_games',
-              title: "No Games Found",
-              value: "Import games to get started.",
-              icon: getLucideIcon("Info"),
-              description: "Head over to the Game Analysis page to import your chess games.",
-              trainingLink: "/analysis"
-            }]);
-        }
-      } catch (error) {
-        console.error("Error loading dashboard data:", error);
-        toast({
-          title: "Dashboard Error",
-          description: "Could not load AI-powered insights. " + (error instanceof Error ? error.message : String(error)),
-          variant: "destructive",
-        });
-        setAnalysisSummary("Failed to load insights due to an error. Please try again later.");
-        setAnalysisInsights([{
-          id: 'error_loading',
-          title: "Error",
-          value: "Could not load insights.",
-          icon: getLucideIcon("AlertTriangle"),
-          description: "There was a problem fetching or analyzing your game data.",
-        }]);
-      } finally {
-        setIsLoadingInsights(false);
-      }
+      setAnalysisSummary("Enter your Lichess username below or use the Analysis page to get started.");
+      setIsLoadingInsights(false);
     };
-
-    loadDashboardData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Toast is stable
+    loadInitialDashboard();
+  }, []);
 
   return (
     <div className="space-y-8">
       <PageTitle title="Dashboard" subtitle="Your chess performance at a glance" icon={<LayoutDashboard size={32} />} />
 
-      {isLoadingInsights && !analysisSummary && (
+      <Card className="bg-card rounded-xl shadow-soft-ui">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><UserSearch size={24}/> Fetch Lichess Game History</CardTitle>
+          <CardDescription>Enter your Lichess.org username to fetch your recent games and get personalized insights.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Form {...lichessForm}>
+            <form onSubmit={lichessForm.handleSubmit(onFetchLichessGamesSubmit)} className="flex flex-col sm:flex-row items-start gap-4">
+              <FormField
+                control={lichessForm.control}
+                name="lichessUsername"
+                render={({ field }) => (
+                  <FormItem className="flex-grow w-full sm:w-auto">
+                    <FormLabel htmlFor="lichessUsername" className="sr-only">Lichess Username</FormLabel>
+                    <FormControl>
+                      <Input id="lichessUsername" placeholder="e.g., DrNykterstein" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit" disabled={isFetchingLichessGames} className="w-full sm:w-auto">
+                {isFetchingLichessGames ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserSearch className="mr-2 h-4 w-4" />}
+                Fetch & Analyze
+              </Button>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+      
+      {(isLoadingInsights || isFetchingLichessGames) && !analysisSummary && ( // Show global loader only if summary is also not set
          <Card className="bg-card rounded-xl shadow-soft-ui">
           <CardHeader>
             <CardTitle>Personalized Insights</CardTitle>
@@ -150,7 +224,7 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {analysisSummary && !isLoadingInsights && (
+      {analysisSummary && (
         <Card className="bg-card rounded-xl shadow-soft-ui">
           <CardHeader>
             <CardTitle>AI Coach Summary</CardTitle>
