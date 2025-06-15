@@ -4,51 +4,51 @@
 
 @layer base {
   :root {
-    --background: 210 17% 97%; /* #F8F9FA */
-    --foreground: 215 25% 20%; /* #252F40 */
+    --background: 220 20% 10%; /* Darker background for glassmorphism */
+    --foreground: 210 40% 98%; /* Light foreground */
 
-    --card: 0 0% 100%; /* #FFFFFF */
-    --card-foreground: 215 25% 20%; /* #252F40 */
+    --card: 220 15% 25%; /* Fallback card color if blur isn't enough */
+    --card-foreground: 210 40% 98%;
 
-    --popover: 0 0% 100%; /* #FFFFFF */
-    --popover-foreground: 215 25% 20%; /* #252F40 */
+    --popover: 220 15% 20%;
+    --popover-foreground: 210 40% 98%;
 
-    --primary: 268 60% 50%; /* #7928CA */
-    --primary-foreground: 0 0% 100%; /* White text on primary */
+    --primary: 260 85% 65%; /* Brighter Pink/Purple */
+    --primary-foreground: 210 40% 98%;
 
-    --secondary: 217 16% 48%; /* #67748E */
-    --secondary-foreground: 0 0% 100%;
+    --secondary: 217 30% 55%; 
+    --secondary-foreground: 210 40% 98%;
 
-    --muted: 210 16% 93%; /* #E9ECEF */
-    --muted-foreground: 217 16% 48%; /* #67748E */
+    --muted: 220 15% 30%; 
+    --muted-foreground: 220 10% 65%;
 
-    --accent: 227 100% 56%; /* #2152FF */
-    --accent-foreground: 0 0% 100%;
+    --accent: 180 70% 50%; /* Cyan/Teal accent */
+    --accent-foreground: 220 20% 10%;
 
-    --destructive: 351 92% 55%; /* #F5222D */
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 0 70% 60%;
+    --destructive-foreground: 210 40% 98%;
 
-    --border: 210 14% 85%; /* #D2D6DA */
-    --input: 0 0% 100%; /* #FFFFFF */
-    --ring: 268 60% 50%; /* Primary color #7928CA */
+    --border: 220 15% 40%; /* Softer border for glass elements */
+    --input: 220 15% 25%; /* Glassy input background */
+    --ring: 260 85% 70%; /* Brighter ring */
 
-    --radius: 0.5rem; /* 8px */
+    --radius: 0.75rem; /* Slightly larger radius for modern feel */
 
-    /* Sidebar specific colors */
-    --sidebar-background: 0 0% 100%; /* #FFFFFF */
-    --sidebar-foreground: 215 25% 20%; /* #252F40 */
-    --sidebar-primary: 323 90% 42%; /* #CB0C9F Pink for active sidebar item */
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 96%; /* #f5f5f5 Light gray for hover */
-    --sidebar-accent-foreground: 215 25% 20%; /* #252F40 */
-    --sidebar-border: 210 16% 93%; /* #E9ECEF for separators */
-    --sidebar-ring: 323 90% 42%; /* #CB0C9F */
+    /* Sidebar specific colors - adapt to glassmorphism */
+    --sidebar-background: 220 15% 18%; /* Darker, slightly transparent base for sidebar */
+    --sidebar-foreground: 210 30% 85%;
+    --sidebar-primary: 180 70% 50%; /* Accent color for active */
+    --sidebar-primary-foreground: 220 20% 10%;
+    --sidebar-accent: 220 15% 28%; /* Hover state */
+    --sidebar-accent-foreground: 180 70% 60%;
+    --sidebar-border: 220 15% 30%;
+    --sidebar-ring: 180 70% 55%;
     
-    --chart-1: 323 90% 42%; /* #CB0C9F */
-    --chart-2: 215 25% 20%; /* #252F40 */
-    --chart-3: 227 100% 56%; /* #2152FF */
-    --chart-4: 86 78% 52%; /* #82D616 */
-    --chart-5: 43 74% 66%; /* Existing */
+    --chart-1: 260 85% 65%;
+    --chart-2: 180 70% 50%;
+    --chart-3: 45 90% 60%; /* Gold/Yellow */
+    --chart-4: 120 60% 55%; /* Green */
+    --chart-5: 0 70% 60%; /* Red */
   }
 }
 
@@ -61,23 +61,35 @@
     scroll-behavior: smooth;
   }
 
-  /* Custom scrollbar */
+  /* Custom scrollbar for a more modern feel */
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
   }
   ::-webkit-scrollbar-track {
-    @apply bg-muted/50; /* Use a lighter track for light theme */
-    border-radius: var(--radius);
+    @apply bg-transparent; /* Fully transparent track */
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-secondary/50; /* Use secondary for thumb */
-    border-radius: var(--radius);
+    @apply bg-muted/50 rounded-full;
   }
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-secondary/70;
+    @apply bg-muted;
   }
 }
 
-/* Remove .glass-card style helper as it's not part of the new design */
-/* Cards will be styled with Tailwind utilities like bg-card rounded-xl shadow-[0_20px_27px_rgba(0,0,0,0.05)] */
+/* Glassmorphism Card Style Helper */
+.glass-card {
+  @apply bg-card/10 backdrop-blur-lg border border-white/10 shadow-xl rounded-2xl;
+  /* Custom properties for more control if needed */
+  /* background: rgba(255, 255, 255, 0.05); 
+     backdrop-filter: blur(12px);
+     -webkit-backdrop-filter: blur(12px); 
+     border: 1px solid rgba(255, 255, 255, 0.1);
+  */
+}
+
+/* Bento Grid utility */
+.bento-grid {
+  @apply grid gap-4 sm:gap-6;
+  /* Default to 1 column, override with Tailwind grid-cols utilities */
+}

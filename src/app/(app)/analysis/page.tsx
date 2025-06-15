@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Lightbulb, Loader2, AlertCircle, CheckCircle, UserSearch } from 'lucide-react';
+import { FileText, Lightbulb, Loader2, AlertCircle, CheckCircle, UserSearch, BarChartHorizontalBig } from 'lucide-react';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 
@@ -23,7 +23,7 @@ import { generateImprovementTips, GenerateImprovementTipsOutput } from '@/ai/flo
 import { fetchGameHistory, FetchGameHistoryOutput } from '@/ai/flows/fetch-game-history';
 
 const pgnImportSchema = z.object({
-  pgn: z.string().min(10, { message: "PGN data seems too short." }).max(20000, { message: "PGN data is too long." }),
+  pgn: z.string().min(10, { message: "PGN data seems too short." }).max(30000, { message: "PGN data is too long (max 30k chars)." }),
 });
 
 const usernameImportSchema = z.object({
@@ -51,10 +51,16 @@ export default function AnalysisPage() {
   });
 
   const processAnalysis = async (pgnData: string, source: string) => {
+    if (!pgnData || pgnData.trim().length < 10) {
+      toast({ title: "Invalid PGN", description: "The PGN data is empty or too short to analyze.", variant: "destructive"});
+      setAnalysisResult(null);
+      setImprovementTips(null);
+      return;
+    }
     try {
       const analysis = await analyzeChessGame({ pgn: pgnData });
       setAnalysisResult(analysis);
-      toast({ title: `Game from ${source} Analyzed`, description: "Successfully analyzed the game.", variant: "default" });
+      toast({ title: `Game from ${source} Analyzed`, description: "Stockfish analysis complete.", variant: "default" });
 
       if (analysis?.analysis) {
         const tips = await generateImprovementTips({ gameAnalysis: analysis.analysis });
@@ -64,6 +70,8 @@ export default function AnalysisPage() {
     } catch (error) {
       console.error(`Error analyzing game from ${source}:`, error);
       toast({ title: "Analysis Error", description: `Could not analyze the game from ${source}. ` + (error instanceof Error ? error.message : String(error)), variant: "destructive" });
+      setAnalysisResult(null);
+      setImprovementTips(null);
     }
   };
 
@@ -81,13 +89,13 @@ export default function AnalysisPage() {
     setImprovementTips(null);
     try {
       toast({ title: "Fetching Games...", description: `Attempting to fetch games for ${data.username} from ${data.platform}.`, variant: "default"});
-      const historyOutput = await fetchGameHistory({ platform: data.platform as "lichess" | "chesscom" | "chess24", username: data.username });
+      const historyOutput = await fetchGameHistory({ platform: data.platform as "lichess" | "chesscom" | "chess24", username: data.username, maxGames: 1 });
 
       if (historyOutput.games && historyOutput.games.length > 0) {
-        toast({ title: "Games Fetched!", description: `Found ${historyOutput.games.length} games. Analyzing the first one.`, variant: "default"});
+        toast({ title: "Games Fetched!", description: `Found ${historyOutput.games.length} game(s). Analyzing the latest one.`, variant: "default"});
         await processAnalysis(historyOutput.games[0], `${data.platform} (${data.username})`);
       } else {
-        toast({ title: "No Games Found", description: `No games found for ${data.username} on ${data.platform}, or the platform integration is pending.`, variant: "default" });
+        toast({ title: "No Games Found", description: `No games found for ${data.username} on ${data.platform}, or the platform integration is pending. Ensure username is correct and games are public.`, variant: "default" });
       }
     } catch (error) {
       console.error("Error fetching/analyzing game history:", error);
@@ -98,21 +106,21 @@ export default function AnalysisPage() {
   };
 
   return (
-    <div className="space-y-8">
-      <PageTitle title="Game Analysis" subtitle="Import games and get AI-powered insights" icon={<FileText size={32}/>} />
+    <div className="space-y-8 pb-10">
+      <PageTitle title="Game Analysis" subtitle="Import games and get Stockfish-powered insights" icon={<BarChartHorizontalBig size={32} className="text-primary"/>} />
 
       <Tabs defaultValue="username" onValueChange={(value) => setActiveTab(value as "username" | "pgn")} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:w-[400px]">
+        <TabsList className="grid w-full grid-cols-2 md:w-[400px] bg-muted/30 border border-border/30 backdrop-blur-sm">
           <TabsTrigger value="username">Import by Username</TabsTrigger>
           <TabsTrigger value="pgn">Upload PGN</TabsTrigger>
         </TabsList>
         <TabsContent value="username">
-          <Card className="bg-card rounded-xl shadow-soft-ui">
-            <CardHeader>
-              <CardTitle>Import from Chess.com, Lichess, or Chess24</CardTitle>
-              <CardDescription>Enter your username to import recent games. (Mock data for now)</CardDescription>
+          <Card glass className="p-6 animate-fade-in">
+            <CardHeader className="p-0 pb-4">
+              <CardTitle className="text-xl">Import from Lichess.org</CardTitle>
+              <CardDescription>Enter your username to import your latest game. (Chess.com/24 coming soon)</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-0">
               <Form {...usernameForm}>
                 <form onSubmit={usernameForm.handleSubmit(handleUsernameSubmit)} className="space-y-6">
                   <FormField
@@ -123,14 +131,14 @@ export default function AnalysisPage() {
                         <FormLabel>Platform</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
-                            <SelectTrigger>
+                            <SelectTrigger className="bg-background/50 border-border/50">
                               <SelectValue placeholder="Select a platform" />
                             </SelectTrigger>
                           </FormControl>
-                          <SelectContent>
+                          <SelectContent className="bg-popover/80 backdrop-blur-md border-border/50">
                             <SelectItem value="lichess">Lichess.org</SelectItem>
-                            <SelectItem value="chesscom">Chess.com</SelectItem>
-                            <SelectItem value="chess24">Chess24</SelectItem>
+                            <SelectItem value="chesscom" disabled>Chess.com (Soon)</SelectItem>
+                            <SelectItem value="chess24" disabled>Chess24 (Soon)</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -144,7 +152,7 @@ export default function AnalysisPage() {
                       <FormItem>
                         <FormLabel>Username</FormLabel>
                         <FormControl>
-                          <Input placeholder="e.g., MagnusCarlsen" {...field} />
+                          <Input placeholder="e.g., MagnusCarlsen" {...field} className="bg-background/50 border-border/50"/>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -152,7 +160,7 @@ export default function AnalysisPage() {
                   />
                   <Button type="submit" disabled={isLoading} className="w-full md:w-auto">
                     {isLoading && activeTab === "username" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserSearch className="mr-2 h-4 w-4" />}
-                    Import & Analyze
+                    Import & Analyze Latest Game
                   </Button>
                 </form>
               </Form>
@@ -160,12 +168,12 @@ export default function AnalysisPage() {
           </Card>
         </TabsContent>
         <TabsContent value="pgn">
-          <Card className="bg-card rounded-xl shadow-soft-ui">
-            <CardHeader>
-              <CardTitle>Upload PGN</CardTitle>
+          <Card glass className="p-6 animate-fade-in">
+            <CardHeader className="p-0 pb-4">
+              <CardTitle className="text-xl">Upload PGN</CardTitle>
               <CardDescription>Paste your game data in PGN format below.</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-0">
               <Form {...pgnForm}>
                 <form onSubmit={pgnForm.handleSubmit(handlePgnSubmit)} className="space-y-6">
                   <FormField
@@ -177,7 +185,7 @@ export default function AnalysisPage() {
                         <FormControl>
                           <Textarea
                             placeholder="[Event \"Rated Blitz game\"]..."
-                            className="min-h-[150px] font-code text-sm"
+                            className="min-h-[200px] font-code text-sm bg-background/50 border-border/50"
                             {...field}
                           />
                         </FormControl>
@@ -197,24 +205,24 @@ export default function AnalysisPage() {
       </Tabs>
 
       {isLoading && (
-        <div className="flex flex-col items-center justify-center text-center p-8 space-y-2 mt-8">
+        <div className="flex flex-col items-center justify-center text-center p-8 space-y-2 mt-8 animate-fade-in">
           <Loader2 className="h-12 w-12 animate-spin text-primary" />
           <p className="text-lg font-medium">Processing your request...</p>
-          <p className="text-muted-foreground">Fetching games and generating insights. This might take a few moments.</p>
+          <p className="text-muted-foreground">Analyzing game with Stockfish. This might take a few moments.</p>
         </div>
       )}
 
       {analysisResult && !isLoading && (
-        <Card className="bg-card rounded-xl shadow-soft-ui mt-8">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><CheckCircle className="text-green-500" /> Game Analysis Complete</CardTitle>
+        <Card glass className="p-6 mt-8 animate-fade-in">
+          <CardHeader className="p-0 pb-4">
+            <CardTitle className="flex items-center gap-2 text-xl"><CheckCircle className="text-green-400" /> Game Analysis Complete</CardTitle>
           </CardHeader>
-          <CardContent>
-            <Accordion type="single" collapsible defaultValue="analysis">
-              <AccordionItem value="analysis">
-                <AccordionTrigger className="text-lg font-semibold">Detailed Analysis</AccordionTrigger>
-                <AccordionContent className="prose prose-sm prose-neutral dark:prose-invert max-w-none whitespace-pre-wrap p-4 bg-muted/30 rounded-md font-code">
-                  {analysisResult.analysis}
+          <CardContent className="p-0">
+            <Accordion type="single" collapsible defaultValue="analysis" className="w-full">
+              <AccordionItem value="analysis" className="border-b-0">
+                <AccordionTrigger className="text-lg font-semibold hover:no-underline">Detailed Stockfish Analysis</AccordionTrigger>
+                <AccordionContent className="prose prose-sm prose-invert max-w-none whitespace-pre-wrap p-4 bg-background/30 rounded-md font-code text-sm">
+                  {analysisResult.analysis || "No detailed analysis content."}
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
@@ -223,14 +231,14 @@ export default function AnalysisPage() {
       )}
 
       {improvementTips && improvementTips.tips.length > 0 && !isLoading && (
-        <Card className="bg-card rounded-xl shadow-soft-ui mt-8">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Lightbulb className="text-yellow-400" /> Improvement Suggestions</CardTitle>
+        <Card glass className="p-6 mt-8 animate-fade-in">
+          <CardHeader className="p-0 pb-4">
+            <CardTitle className="flex items-center gap-2 text-xl"><Lightbulb className="text-yellow-300" /> Improvement Suggestions</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0">
             <ul className="space-y-3">
               {improvementTips.tips.map((tip, index) => (
-                <li key={index} className="p-4 bg-muted/30 rounded-md border border-border/50">
+                <li key={index} className="p-4 bg-background/30 rounded-lg border border-white/10 shadow-sm">
                   <span dangerouslySetInnerHTML={{ __html: tip.replace(/\[(.*?)\]\((.*?)\)/g, (match, text, url) => `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-accent hover:underline">${text} <span role="img" aria-label="external link" class="inline-block align-middle"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-external-link h-3 w-3"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></span></a>`) }}></span>
                 </li>
               ))}
@@ -240,9 +248,9 @@ export default function AnalysisPage() {
       )}
 
       {!isLoading && !analysisResult && !improvementTips && (
-         <Card className="bg-card rounded-xl shadow-soft-ui mt-8">
-          <CardContent className="p-8 text-center">
-            <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground" />
+         <Card glass className="p-8 mt-8 text-center animate-fade-in">
+          <CardContent className="p-0 flex flex-col items-center justify-center">
+            <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
             <h3 className="mt-4 text-lg font-medium text-foreground">No Analysis Data</h3>
             <p className="mt-1 text-sm text-muted-foreground">
               Import a game by username or upload PGN to see analysis and suggestions.

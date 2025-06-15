@@ -6,7 +6,10 @@ import Link from 'next/link';
 import PageTitle from "@/components/common/page-title";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
-import { BarChart3, BrainCircuit, LayoutDashboard, AlertTriangle, TrendingUp, TrendingDown, Puzzle, Loader2, Info, UserSearch, FileSignature } from "lucide-react";
+import { 
+  BarChart3, BrainCircuit, LayoutDashboard, AlertTriangle, TrendingUp, TrendingDown, 
+  Puzzle, Loader2, Info, UserSearch, FileSignature, Target, Activity, Trophy, ShieldQuestion, GitMerge
+} from "lucide-react";
 import Image from 'next/image';
 import { useToast } from "@/hooks/use-toast";
 import { Input } from '@/components/ui/input';
@@ -14,6 +17,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend } from 'recharts';
+
 
 import { fetchGameHistory, FetchGameHistoryInput } from '@/ai/flows/fetch-game-history';
 import { deepAnalyzeGameMetrics, DeepAnalyzeGameMetricsOutput } from '@/ai/flows/deep-analyze-game-metrics';
@@ -21,37 +26,115 @@ import { deepAnalyzeGameMetrics, DeepAnalyzeGameMetricsOutput } from '@/ai/flows
 interface Insight {
   id: string;
   title: string;
-  value: string; 
+  value: string | number; 
   icon: React.ReactNode;
   description?: string; 
   color?: string; 
   trainingLink?: string; 
   severity?: "high" | "medium" | "low";
+  type?: "metric" | "weakness" | "stat";
+  unit?: string;
+  colSpan?: string; // For bento grid: 'lg:col-span-1', 'lg:col-span-2', etc.
+  rowSpan?: string; // For bento grid: 'lg:row-span-1', 'lg:row-span-2', etc.
 }
+
+interface PgnTag {
+  name: string;
+  value: string;
+}
+
+interface ParsedPgnGame {
+  tags: PgnTag[];
+  moves: string;
+  result?: string;
+  whitePlayer?: string;
+  blackPlayer?: string;
+  whiteElo?: number;
+  blackElo?: number;
+  whiteRatingDiff?: string; // e.g. "+5" or "-10"
+  blackRatingDiff?: string;
+  opening?: string;
+  date?: Date;
+}
+
+function parsePgn(pgn: string): ParsedPgnGame {
+  const tags: PgnTag[] = [];
+  let moves = "";
+  const lines = pgn.split('\\n');
+  let inHeaders = true;
+
+  for (const line of lines) {
+    if (line.startsWith('[')) {
+      const match = line.match(/\\[([A-Za-z0-9_]+) "(.*?)"\\]/);
+      if (match) {
+        tags.push({ name: match[1], value: match[2] });
+      }
+    } else if (line.trim() !== "" && !line.startsWith('%')) { // Ignore empty lines and comments like %eval
+      inHeaders = false;
+      moves += line + " ";
+    }
+  }
+  moves = moves.replace(/\\{[^}]*\\}/g, '').replace(/\\([^)]*\\)/g, '').trim(); // Remove comments and variations
+
+  const getTag = (name: string) => tags.find(tag => tag.name === name)?.value;
+  
+  let date;
+  const dateStr = getTag("Date") || getTag("UTCDate");
+  if (dateStr && dateStr !== "?") {
+    const [year, month, day] = dateStr.split('.').map(Number);
+    if (year && month && day) {
+      date = new Date(year, month -1, day);
+    }
+  }
+
+
+  return {
+    tags,
+    moves,
+    result: getTag("Result"),
+    whitePlayer: getTag("White"),
+    blackPlayer: getTag("Black"),
+    whiteElo: parseInt(getTag("WhiteElo") || "", 10) || undefined,
+    blackElo: parseInt(getTag("BlackElo") || "", 10) || undefined,
+    whiteRatingDiff: getTag("WhiteRatingDiff"),
+    blackRatingDiff: getTag("BlackRatingDiff"),
+    opening: getTag("Opening"),
+    date: date,
+  };
+}
+
 
 function getLucideIcon(iconName?: string): React.ReactNode {
   const icons: { [key: string]: React.ReactNode } = {
-    AlertTriangle: <AlertTriangle size={24} />,
-    Puzzle: <Puzzle size={24} />,
-    BrainCircuit: <BrainCircuit size={24} />,
-    TrendingDown: <TrendingDown size={24} />,
-    TrendingUp: <TrendingUp size={24} />,
-    BarChart3: <BarChart3 size={24} />,
-    Info: <Info size={24}/>
+    AlertTriangle: <AlertTriangle size={24} className="text-yellow-400" />,
+    Puzzle: <Puzzle size={24} className="text-blue-400" />,
+    BrainCircuit: <BrainCircuit size={24} className="text-purple-400" />,
+    TrendingDown: <TrendingDown size={24} className="text-red-400" />,
+    TrendingUp: <TrendingUp size={24} className="text-green-400" />,
+    BarChart3: <BarChart3 size={24} className="text-indigo-400" />,
+    Info: <Info size={24} className="text-gray-400"/>,
+    Target: <Target size={24} className="text-red-500"/>, // For blunders
+    Activity: <Activity size={24} className="text-teal-400"/>, // For overall activity/trends
+    Trophy: <Trophy size={24} className="text-amber-400"/>, // For wins/achievements
+    ShieldQuestion: <ShieldQuestion size={24} className="text-orange-400"/>, // For mistakes
+    GitMerge: <GitMerge size={24} className="text-sky-400"/> // For opening consistency or variations
   };
   if (iconName && icons[iconName]) {
     return icons[iconName];
   }
-  return <Info size={24} />; 
+  return <Info size={24} className="text-gray-400" />; 
 }
 
 const defaultInsights: Insight[] = [
   {
-    id: 'placeholder_initial',
+    id: 'welcome_message',
     title: "Welcome to ChessForgeAI!",
-    value: "Analyze your games to get personalized insights.",
-    icon: <FileSignature size={24}/>,
-    description: "Use the form below to fetch your Lichess game history or import games on the Analysis page.",
+    value: "Connect Your Lichess Account",
+    icon: <FileSignature size={32} className="text-primary"/>,
+    description: "Enter your Lichess username below to fetch game history and unlock personalized insights.",
+    type: "metric",
+    colSpan: "lg:col-span-2",
+    rowSpan: "lg:row-span-1",
   },
 ];
 
@@ -60,21 +143,34 @@ const lichessUsernameSchema = z.object({
 });
 type LichessUsernameFormValues = z.infer<typeof lichessUsernameSchema>;
 
+interface PerformanceDataPoint {
+  game: number;
+  date: string;
+  rating?: number;
+  opponentElo?: number;
+}
+
 export default function DashboardPage() {
   const { toast } = useToast();
   const [analysisInsights, setAnalysisInsights] = useState<Insight[]>(defaultInsights);
-  const [isLoadingInsights, setIsLoadingInsights] = useState(true); // For initial load
+  const [isLoadingInsights, setIsLoadingInsights] = useState(false);
   const [analysisSummary, setAnalysisSummary] = useState<string | null>("Enter your Lichess username below or use the Analysis page to get started.");
   const [isFetchingLichessGames, setIsFetchingLichessGames] = useState(false);
+  const [recentGames, setRecentGames] = useState<ParsedPgnGame[]>([]);
+  const [performanceData, setPerformanceData] = useState<PerformanceDataPoint[]>([]);
+  const [activeUsername, setActiveUsername] = useState<string | null>(null);
+
 
   const lichessForm = useForm<LichessUsernameFormValues>({
     resolver: zodResolver(lichessUsernameSchema),
     defaultValues: { lichessUsername: "" },
   });
 
-  const processAndDisplayAnalysis = (analysisOutput: DeepAnalyzeGameMetricsOutput, username: string) => {
+  const processAndDisplayAnalysis = (analysisOutput: DeepAnalyzeGameMetricsOutput, username: string, fetchedGames: ParsedPgnGame[]) => {
     setAnalysisSummary(analysisOutput.overallSummary || `Analysis complete for ${username}.`);
-    const newInsights = analysisOutput.primaryWeaknesses.map((weakness, index) => ({
+    setActiveUsername(username);
+
+    const weaknessInsights = analysisOutput.primaryWeaknesses.map((weakness, index) => ({
       id: weakness.name.toLowerCase().replace(/\s+/g, '_') || `weakness-${index}`,
       title: weakness.name,
       value: weakness.trainingSuggestion.text,
@@ -82,15 +178,69 @@ export default function DashboardPage() {
       description: weakness.description,
       severity: weakness.severity,
       trainingLink: weakness.trainingSuggestion.link,
-      color: weakness.severity === 'high' ? 'text-destructive' : weakness.severity === 'medium' ? 'text-yellow-500' : 'text-green-500',
-    }));
-    setAnalysisInsights(newInsights.length > 0 ? newInsights : [{
-      id: 'no_specific_weaknesses',
-      title: "General Review",
-      value: "Continue practicing and analyzing your games!",
-      icon: getLucideIcon("Info"),
-      description: `No specific primary weaknesses identified for ${username}, or analysis is general. Keep up the good work!`,
-    }]);
+      color: weakness.severity === 'high' ? 'text-destructive' : weakness.severity === 'medium' ? 'text-yellow-400' : 'text-green-400',
+      type: "weakness",
+      colSpan: "lg:col-span-1",
+      rowSpan: "lg:row-span-1",
+    } as Insight));
+    
+    // Stats from fetchedGames
+    let wins = 0;
+    let losses = 0;
+    let draws = 0;
+    fetchedGames.forEach(game => {
+      if (game.whitePlayer?.toLowerCase() === username.toLowerCase()) {
+        if (game.result === "1-0") wins++;
+        else if (game.result === "0-1") losses++;
+        else if (game.result === "1/2-1/2") draws++;
+      } else if (game.blackPlayer?.toLowerCase() === username.toLowerCase()) {
+        if (game.result === "0-1") wins++;
+        else if (game.result === "1-0") losses++;
+        else if (game.result === "1/2-1/2") draws++;
+      }
+    });
+
+    const gameStatsInsights: Insight[] = [
+      { id: 'total_games', title: 'Games Analyzed', value: fetchedGames.length, icon: <BarChart3 size={24} className="text-indigo-400" />, type: 'stat', colSpan: 'lg:col-span-1' },
+      { id: 'wins', title: 'Wins', value: wins, icon: <Trophy size={24} className="text-green-400" />, type: 'stat', colSpan: 'lg:col-span-1' },
+      { id: 'losses', title: 'Losses', value: losses, icon: <TrendingDown size={24} className="text-red-400" />, type: 'stat', colSpan: 'lg:col-span-1' },
+      { id: 'draws', title: 'Draws', value: draws, icon: <ShieldQuestion size={24} className="text-gray-400" />, type: 'stat', colSpan: 'lg:col-span-1' },
+    ];
+    
+    setAnalysisInsights([...gameStatsInsights, ...weaknessInsights]);
+    setRecentGames(fetchedGames.slice(0, 5)); // Display up to 5 recent games
+
+    // Performance data
+    const newPerformanceData: PerformanceDataPoint[] = fetchedGames
+    .filter(game => game.date) // Ensure game has a date
+    .sort((a,b) => a.date!.getTime() - b.date!.getTime()) // Sort by date
+    .map((game, index) => {
+      let rating;
+      let opponentElo;
+      if (game.whitePlayer?.toLowerCase() === username.toLowerCase()) {
+        rating = game.whiteElo;
+        if (game.whiteRatingDiff) {
+            const diff = parseInt(game.whiteRatingDiff);
+            if (rating && !isNaN(diff)) rating -= diff; // Estimate rating before this game
+        }
+        opponentElo = game.blackElo;
+      } else if (game.blackPlayer?.toLowerCase() === username.toLowerCase()) {
+        rating = game.blackElo;
+         if (game.blackRatingDiff) {
+            const diff = parseInt(game.blackRatingDiff);
+            if (rating && !isNaN(diff)) rating -= diff; // Estimate rating before this game
+        }
+        opponentElo = game.whiteElo;
+      }
+      return {
+        game: index + 1,
+        date: game.date!.toLocaleDateString('en-CA'), // YYYY-MM-DD for consistency
+        rating: rating,
+        opponentElo: opponentElo
+      };
+    }).filter(point => point.rating !== undefined); // Only include points where user's rating is known
+    setPerformanceData(newPerformanceData);
+
   };
 
   const onFetchLichessGamesSubmit: SubmitHandler<LichessUsernameFormValues> = async (data) => {
@@ -100,30 +250,39 @@ export default function DashboardPage() {
       id: 'loading_lichess',
       title: "Fetching Lichess Games...",
       value: `Looking for games for ${data.lichessUsername}.`,
-      icon: <Loader2 className="animate-spin" size={24} />,
+      icon: <Loader2 className="animate-spin text-primary" size={32} />,
       description: "This might take a moment.",
+      type: "metric",
+      colSpan: "lg:col-span-full",
     }]);
+    setRecentGames([]);
+    setPerformanceData([]);
+    setActiveUsername(data.lichessUsername);
 
     try {
-      const historyInput: FetchGameHistoryInput = { platform: "lichess", username: data.lichessUsername, maxGames: 10 };
+      const historyInput: FetchGameHistoryInput = { platform: "lichess", username: data.lichessUsername, maxGames: 20 }; // Fetch more for trend
       const historyOutput = await fetchGameHistory(historyInput);
+      const fetchedParsedGames = historyOutput.games.map(parsePgn).filter(g => g.tags.length > 0);
 
-      if (historyOutput.games && historyOutput.games.length > 0) {
+
+      if (fetchedParsedGames.length > 0) {
         toast({
           title: "Games Fetched!",
-          description: `Found ${historyOutput.games.length} games for ${data.lichessUsername}. Now analyzing...`,
+          description: `Found ${fetchedParsedGames.length} games for ${data.lichessUsername}. Now analyzing...`,
         });
-        setAnalysisSummary(`Analyzing ${historyOutput.games.length} games for ${data.lichessUsername}...`);
+        setAnalysisSummary(`Analyzing ${fetchedParsedGames.length} games for ${data.lichessUsername}...`);
         setAnalysisInsights([{
           id: 'analyzing_lichess',
           title: "Analyzing Games...",
-          value: `Processing ${historyOutput.games.length} games.`,
-          icon: <Loader2 className="animate-spin" size={24} />,
+          value: `Processing ${fetchedParsedGames.length} games.`,
+          icon: <Loader2 className="animate-spin text-primary" size={32} />,
           description: "Generating insights based on your play.",
+          type: "metric",
+          colSpan: "lg:col-span-full",
         }]);
 
         const deepAnalysis = await deepAnalyzeGameMetrics({ gamePgns: historyOutput.games, playerUsername: data.lichessUsername });
-        processAndDisplayAnalysis(deepAnalysis, data.lichessUsername);
+        processAndDisplayAnalysis(deepAnalysis, data.lichessUsername, fetchedParsedGames);
         toast({
           title: "Analysis Complete",
           description: `Personalized insights for ${data.lichessUsername} are ready.`,
@@ -132,7 +291,7 @@ export default function DashboardPage() {
       } else {
         toast({
           title: "No Games Found",
-          description: `Could not find recent games for ${data.lichessUsername} on Lichess or an error occurred.`,
+          description: `Could not find recent games for ${data.lichessUsername} on Lichess or an error occurred. Ensure the username is correct and games are public.`,
           variant: "default", 
         });
         setAnalysisSummary(`No Lichess games found for ${data.lichessUsername}. Try checking the username or play some games!`);
@@ -142,6 +301,8 @@ export default function DashboardPage() {
           value: "Please check the username or try again later.",
           icon: getLucideIcon("Info"),
           description: "Ensure the Lichess profile is public and has recent games.",
+          type: "metric",
+          colSpan: "lg:col-span-full",
         }]);
       }
     } catch (error) {
@@ -159,6 +320,8 @@ export default function DashboardPage() {
         value: "Could not fetch or analyze Lichess games.",
         icon: getLucideIcon("AlertTriangle"),
         description: errorMessage,
+        type: "metric",
+        colSpan: "lg:col-span-full",
       }]);
     } finally {
       setIsFetchingLichessGames(false);
@@ -167,27 +330,20 @@ export default function DashboardPage() {
 
 
   useEffect(() => {
-    const loadInitialDashboard = async () => {
-      setIsLoadingInsights(true);
-      // This is where you might check auth status and load user-specific data
-      // For now, we just set the default state and let the user trigger Lichess fetch.
-      setAnalysisInsights(defaultInsights);
-      setAnalysisSummary("Enter your Lichess username below or use the Analysis page to get started.");
-      setIsLoadingInsights(false);
-    };
-    loadInitialDashboard();
+    // Initial state for first load if desired, otherwise covered by defaultInsights
+    setIsLoadingInsights(false); 
   }, []);
 
   return (
-    <div className="space-y-8">
-      <PageTitle title="Dashboard" subtitle="Your chess performance at a glance" icon={<LayoutDashboard size={32} />} />
+    <div className="space-y-8 pb-10">
+      <PageTitle title="Dashboard" subtitle={`Insights for ${activeUsername || 'your chess performance'}`} icon={<LayoutDashboard size={32} className="text-primary" />} />
 
-      <Card className="bg-card rounded-xl shadow-soft-ui">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><UserSearch size={24}/> Fetch Lichess Game History</CardTitle>
-          <CardDescription>Enter your Lichess.org username to fetch your recent games and get personalized insights.</CardDescription>
+      <Card glass className="p-6 animate-fade-in">
+        <CardHeader className="p-0 pb-4">
+          <CardTitle className="flex items-center gap-2 text-2xl"><UserSearch size={28}/> Connect Lichess Account</CardTitle>
+          <CardDescription>Enter your Lichess.org username to fetch recent games and get personalized insights.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           <Form {...lichessForm}>
             <form onSubmit={lichessForm.handleSubmit(onFetchLichessGamesSubmit)} className="flex flex-col sm:flex-row items-start gap-4">
               <FormField
@@ -197,14 +353,14 @@ export default function DashboardPage() {
                   <FormItem className="flex-grow w-full sm:w-auto">
                     <FormLabel htmlFor="lichessUsername" className="sr-only">Lichess Username</FormLabel>
                     <FormControl>
-                      <Input id="lichessUsername" placeholder="e.g., DrNykterstein" {...field} />
+                      <Input id="lichessUsername" placeholder="e.g., DrNykterstein" {...field} className="bg-background/50 border-border/50 placeholder-muted-foreground/70 text-lg"/>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <Button type="submit" disabled={isFetchingLichessGames} className="w-full sm:w-auto">
-                {isFetchingLichessGames ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserSearch className="mr-2 h-4 w-4" />}
+              <Button type="submit" disabled={isFetchingLichessGames || !lichessForm.formState.isValid} className="w-full sm:w-auto text-base py-3 px-6">
+                {isFetchingLichessGames ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <UserSearch className="mr-2 h-5 w-5" />}
                 Fetch & Analyze
               </Button>
             </form>
@@ -212,55 +368,55 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
       
-      {(isLoadingInsights || isFetchingLichessGames) && !analysisSummary && ( // Show global loader only if summary is also not set
-         <Card className="bg-card rounded-xl shadow-soft-ui">
-          <CardHeader>
-            <CardTitle>Personalized Insights</CardTitle>
+      {analysisSummary && !isFetchingLichessGames && (
+        <Card glass className="p-6 animate-fade-in animation-delay-200">
+          <CardHeader className="p-0 pb-2">
+            <CardTitle className="text-xl">AI Coach Summary</CardTitle>
           </CardHeader>
-          <CardContent className="min-h-[100px] flex items-center justify-center">
-             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-             <p className="ml-2 text-muted-foreground">Generating your personalized dashboard...</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {analysisSummary && (
-        <Card className="bg-card rounded-xl shadow-soft-ui">
-          <CardHeader>
-            <CardTitle>AI Coach Summary</CardTitle>
-          </CardHeader>
-          <CardContent>
+          <CardContent className="p-0">
             <p className="text-muted-foreground">{analysisSummary}</p>
           </CardContent>
         </Card>
       )}
       
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        {analysisInsights.map((insight) => (
-          <Card key={insight.id} className="bg-card rounded-xl shadow-soft-ui flex flex-col">
-            <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+      <div className="bento-grid lg:grid-cols-3 animate-fade-in animation-delay-400">
+        {analysisInsights.map((insight, index) => (
+          <Card 
+            key={insight.id} 
+            glass 
+            className={cn(
+              "p-4 sm:p-6 flex flex-col",
+              insight.colSpan || "lg:col-span-1",
+              insight.rowSpan || "lg:row-span-1",
+              `animate-slide-up animation-delay-${200 + index * 100}`
+            )}
+          >
+            <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2 p-0">
               <div className="space-y-1">
-                <CardTitle className={`text-sm font-medium ${insight.color || 'text-muted-foreground'}`}>{insight.title}</CardTitle>
+                <CardTitle className={cn("text-lg font-medium", insight.color || 'text-foreground')}>{insight.title}</CardTitle>
                 {insight.severity && (
                    <span className={`px-2 py-0.5 text-xs rounded-full ${
-                    insight.severity === "high" ? "bg-red-500/20 text-red-400" :
-                    insight.severity === "medium" ? "bg-yellow-500/20 text-yellow-400" :
-                    "bg-green-500/20 text-green-400" 
+                    insight.severity === "high" ? "bg-red-900/70 text-red-300" :
+                    insight.severity === "medium" ? "bg-yellow-900/70 text-yellow-300" :
+                    "bg-green-900/70 text-green-300" 
                   }`}>
-                    Severity: {insight.severity}
+                    {insight.severity}
                   </span>
                 )}
               </div>
-              <span className={insight.color || 'text-muted-foreground'}>{insight.icon}</span>
+              <span className={cn("opacity-70", insight.color || 'text-muted-foreground')}>{insight.icon}</span>
             </CardHeader>
-            <CardContent className="flex-grow">
-              <div className={`text-lg font-semibold ${insight.color || 'text-foreground'}`}>{insight.value}</div>
+            <CardContent className="flex-grow p-0 pt-2">
+              <div className={`text-2xl font-semibold ${insight.color || 'text-foreground'}`}>
+                {typeof insight.value === 'number' ? insight.value.toLocaleString() : insight.value}
+                {insight.unit && <span className="text-sm font-normal text-muted-foreground ml-1">{insight.unit}</span>}
+              </div>
               {insight.description && <p className="text-xs text-muted-foreground pt-1">{insight.description}</p>}
             </CardContent>
             {insight.trainingLink && (
-              <CardContent className="pt-0">
+              <CardContent className="p-0 pt-4">
                 <Link href={insight.trainingLink} passHref>
-                  <Button variant="outline" size="sm" className="w-full">
+                  <Button variant="outline" size="sm" className="w-full border-primary/50 text-primary hover:bg-primary/10 hover:text-primary">
                     Train This Area
                   </Button>
                 </Link>
@@ -270,47 +426,85 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="bg-card rounded-xl shadow-soft-ui">
-          <CardHeader>
-            <CardTitle>Performance Trend</CardTitle>
-            <CardDescription>Your ELO rating over the last 30 games (mock data).</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px] flex items-center justify-center bg-muted/30 rounded-lg">
-              <Image src="https://placehold.co/600x300.png" alt="Performance Chart Placeholder" data-ai-hint="graph performance" width={600} height={300} className="rounded-md opacity-70" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-card rounded-xl shadow-soft-ui">
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Summary of your latest analyzed games (mock data).</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {[
-              {id: 1, opponent: "PlayerX", result: "Win", opening: "King's Gambit"},
-              {id: 2, opponent: "ChessMasterY", result: "Loss", opening: "Caro-Kann"},
-              {id: 3, opponent: "RookieZ", result: "Draw", opening: "Italian Game"},
-            ].map(game => (
-              <div key={game.id} className="flex justify-between items-center p-3 bg-muted/30 rounded-md">
-                <div>
-                  <p className="font-medium text-foreground">vs {game.opponent}</p>
-                  <p className="text-xs text-muted-foreground">{game.opening}</p>
-                </div>
-                <span className={`px-2 py-1 text-xs rounded-full ${
-                  game.result === "Win" ? "bg-green-500/20 text-green-400" : 
-                  game.result === "Loss" ? "bg-red-500/20 text-red-400" : 
-                  "bg-yellow-500/20 text-yellow-400" 
-                }`}>
-                  {game.result}
-                </span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+      <div className="bento-grid lg:grid-cols-2 animate-fade-in animation-delay-600">
+         {performanceData.length > 0 && (
+          <Card glass className="p-4 sm:p-6 lg:col-span-2 animate-slide-up animation-delay-800">
+            <CardHeader className="p-0 pb-2">
+              <CardTitle className="text-xl">Performance Trend</CardTitle>
+              <CardDescription>Your approximate Lichess rating over the last {performanceData.length} analyzed games.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0 h-[350px] pt-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={performanceData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border)/0.3)" />
+                  <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}/>
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} domain={['dataMin - 50', 'dataMax + 50']} allowDataOverflow={true} />
+                  <RechartsTooltip
+                    contentStyle={{ 
+                        backgroundColor: 'hsl(var(--popover))', 
+                        borderColor: 'hsl(var(--border))',
+                        borderRadius: 'var(--radius)',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                    }}
+                    labelStyle={{ color: 'hsl(var(--popover-foreground))', fontWeight: 'bold' }}
+                    itemStyle={{ color: 'hsl(var(--popover-foreground))' }}
+                  />
+                  <Legend wrapperStyle={{fontSize: "12px"}}/>
+                  <Line type="monotone" dataKey="rating" name="Your Rating" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3, fill: 'hsl(var(--primary))' }} activeDot={{ r: 6 }} />
+                  <Line type="monotone" dataKey="opponentElo" name="Opponent Rating" stroke="hsl(var(--secondary))" strokeWidth={2} dot={{ r: 3, fill: 'hsl(var(--secondary))' }} activeDot={{ r: 6 }} strokeDasharray="5 5" />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
+
+        {recentGames.length > 0 && (
+          <Card glass className="p-4 sm:p-6 lg:col-span-2 animate-slide-up animation-delay-1000">
+            <CardHeader className="p-0 pb-2">
+              <CardTitle className="text-xl">Recent Activity</CardTitle>
+              <CardDescription>Your latest {recentGames.length} analyzed games.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0 pt-4 space-y-3">
+              {recentGames.map((game, index) => {
+                const opponent = game.whitePlayer?.toLowerCase() === activeUsername?.toLowerCase() ? game.blackPlayer : game.whitePlayer;
+                const userColor = game.whitePlayer?.toLowerCase() === activeUsername?.toLowerCase() ? "White" : "Black";
+                let gameResultText = "Unknown";
+                let resultColor = "bg-gray-700/70 text-gray-300";
+
+                if (userColor === "White") {
+                    if (game.result === "1-0") { gameResultText = "Win"; resultColor = "bg-green-800/70 text-green-300"; }
+                    else if (game.result === "0-1") { gameResultText = "Loss"; resultColor = "bg-red-800/70 text-red-300"; }
+                    else if (game.result === "1/2-1/2") { gameResultText = "Draw"; resultColor = "bg-yellow-800/70 text-yellow-300"; }
+                } else { // User is Black
+                    if (game.result === "0-1") { gameResultText = "Win"; resultColor = "bg-green-800/70 text-green-300"; }
+                    else if (game.result === "1-0") { gameResultText = "Loss"; resultColor = "bg-red-800/70 text-red-300"; }
+                    else if (game.result === "1/2-1/2") { gameResultText = "Draw"; resultColor = "bg-yellow-800/70 text-yellow-300"; }
+                }
+                
+                return (
+                  <div key={index} className="flex justify-between items-center p-3 bg-background/20 rounded-lg border border-white/10 shadow-inner-glow">
+                    <div>
+                      <p className="font-medium text-foreground">vs {opponent || "Unknown Opponent"}</p>
+                      <p className="text-xs text-muted-foreground">{game.opening || "Unknown Opening"} ({userColor})</p>
+                    </div>
+                    <span className={`px-3 py-1 text-xs font-semibold rounded-full ${resultColor}`}>
+                      {gameResultText}
+                    </span>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        )}
+
+        {(!performanceData.length && !recentGames.length && !isFetchingLichessGames && activeUsername) && (
+            <Card glass className="p-6 lg:col-span-2 text-center animate-slide-up">
+                <Info size={40} className="mx-auto text-muted-foreground mb-2"/>
+                <CardTitle className="text-xl mb-1">Not Enough Data</CardTitle>
+                <CardDescription>Could not extract enough information for performance trends or recent activity from the fetched games. More games or PGNs with rating info might be needed.</CardDescription>
+            </Card>
+        )}
       </div>
     </div>
   );
 }
-

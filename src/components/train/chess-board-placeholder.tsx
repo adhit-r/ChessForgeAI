@@ -11,18 +11,19 @@ interface ChessBoardPlaceholderProps {
 
 const ChessBoardPlaceholder: React.FC<ChessBoardPlaceholderProps> = ({ fen }) => {
   return (
-    <Card className="bg-card rounded-xl shadow-soft-ui aspect-square w-full max-w-md mx-auto">
-      <CardContent className="p-2 sm:p-4 flex flex-col items-center justify-center h-full">
+    <Card glass className="aspect-square w-full max-w-lg mx-auto p-2 sm:p-3"> {/* Max width for larger screens */}
+      <CardContent className="p-0 flex flex-col items-center justify-center h-full bg-background/20 rounded-lg shadow-inner-glow">
         <Image 
-          src="https://placehold.co/400x400.png/FFFFFF/252F40?text=Chess+Board" 
+          src="https://placehold.co/500x500/FFFFFF/9CA3AF?text=Chess+Board" // Neutral placeholder color
           alt="Chess Board Placeholder" 
-          width={400} 
-          height={400}
-          className="rounded-md object-contain"
-          data-ai-hint="chess board"
+          width={500} 
+          height={500}
+          className="rounded-md object-contain opacity-80"
+          data-ai-hint="chess board pieces"
+          priority // Prioritize loading for LCP
         />
         {fen && (
-          <p className="mt-2 text-xs font-code text-center text-muted-foreground p-2 bg-muted/50 rounded-md w-full break-all">
+          <p className="mt-3 text-xs font-code text-center text-muted-foreground p-2 bg-background/30 rounded-md w-full break-all max-w-xs sm:max-w-sm">
             FEN: {fen}
           </p>
         )}

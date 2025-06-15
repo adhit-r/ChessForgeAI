@@ -15,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/toaster";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
-import { Bot, Github, Settings, LogOut, Loader2 } from 'lucide-react';
+import { Bot, Github, Settings, LogOut, Loader2, LayoutGrid } from 'lucide-react';
 import Link from 'next/link';
 import { auth } from '@/lib/firebase'; // Import Firebase auth
 import { onAuthStateChanged, User } from 'firebase/auth';
@@ -75,9 +75,9 @@ export default function AppLayout({
     );
   }
 
+  // If not authenticated, router.push should handle redirection. 
+  // A minimal loader can be shown during this brief period.
   if (!isAuthenticated) {
-    // This state should ideally be brief as router.push('/login') will navigate away.
-    // If checkAuthStatus correctly pushes to /login, this might not even be seen often.
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -85,13 +85,20 @@ export default function AppLayout({
       </div>
     );
   }
+  
 
   return (
     <SidebarProvider defaultOpen={true}>
-      <Sidebar side="left" variant="inset" collapsible="icon" className="border-r-0">
-        <SidebarHeader className="p-4 flex flex-col items-center border-b border-sidebar-border">
+      {/* Sidebar with glassmorphism applied to its container, not the SheetContent for mobile */}
+      <Sidebar 
+        side="left" 
+        variant="inset" 
+        collapsible="icon" 
+        className="border-r-0 md:bg-sidebar/80 md:backdrop-blur-lg md:border md:border-white/10 md:shadow-xl md:rounded-r-2xl"
+      >
+        <SidebarHeader className="p-4 flex flex-col items-center border-b border-sidebar-border/50">
           <Link href="/" className="flex items-center gap-2 text-xl font-semibold text-sidebar-primary hover:text-sidebar-primary-foreground transition-colors">
-            <Bot size={28} />
+            <LayoutGrid size={28} className="text-accent" />
             <span className="font-headline group-data-[collapsible=icon]:hidden">ChessForgeAI</span>
           </Link>
           <div className="mt-2 group-data-[collapsible=icon]:hidden">
@@ -103,7 +110,7 @@ export default function AppLayout({
           <SidebarNav />
         </SidebarContent>
 
-        <SidebarFooter className="p-4 border-t border-sidebar-border group-data-[collapsible=icon]:p-2">
+        <SidebarFooter className="p-4 border-t border-sidebar-border/50 group-data-[collapsible=icon]:p-2">
           <div className="flex flex-col gap-2">
             <Button variant="ghost" size="sm" className="w-full justify-start group-data-[collapsible=icon]:justify-center text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
               <Settings size={18} className="mr-2 group-data-[collapsible=icon]:mr-0" />
@@ -131,7 +138,7 @@ export default function AppLayout({
           </div>
         </SidebarFooter>
       </Sidebar>
-      <SidebarInset className="flex flex-col">
+      <SidebarInset className="flex flex-col bg-background"> {/* Ensure main content area has the base background */}
         <div className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto">
          {children}
         </div>
