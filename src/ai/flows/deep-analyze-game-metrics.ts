@@ -71,9 +71,11 @@ const deepAnalyzeGameMetricsFlow = ai.defineFlow(
     outputSchema: DeepAnalyzeGameMetricsOutputSchema,
   },
   async (input) => {
-    // In a real scenario, you might pre-process PGNs or add more complex logic here.
     const {output} = await prompt(input);
-    return output!;
+    if (!output) {
+      console.error('DeepAnalyzeGameMetricsFlow: AI model did not return an output.');
+      throw new Error('Failed to get analysis from AI model. Output was null.');
+    }
+    return output;
   }
 );
-
