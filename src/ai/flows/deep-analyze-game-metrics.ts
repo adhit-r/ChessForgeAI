@@ -42,7 +42,7 @@ export async function deepAnalyzeGameMetrics(input: DeepAnalyzeGameMetricsInput)
 
 const prompt = ai.definePrompt({
   name: 'deepAnalyzeGameMetricsPrompt',
-  model: 'gemini-1.0-pro',
+  model: 'models/gemini-1.0-pro',
   input: {schema: DeepAnalyzeGameMetricsInputSchema},
   output: {schema: DeepAnalyzeGameMetricsOutputSchema},
   prompt: `You are an expert chess grandmaster and coach, tasked with analyzing a player's game history (provided as an array of PGN strings) to identify key metrics, weaknesses, and provide actionable improvement advice. The player's username is {{playerUsername}}.
