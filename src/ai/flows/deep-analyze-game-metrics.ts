@@ -1,16 +1,17 @@
 
 'use server';
 /**
- * @fileOverview Performs a deep analysis of a user's game history to identify metrics,
- * weaknesses, and suggest areas for improvement.
+ * @fileOverview Performs a simplified analysis of a user's game history using Lichess-based
+ * analysis for individual games. This version avoids LLM calls.
  *
  * - deepAnalyzeGameMetrics - Analyzes game PGNs and provides insights.
  * - DeepAnalyzeGameMetricsInput - Input type for the flow.
  * - DeepAnalyzeGameMetricsOutput - Output type for the flow.
  */
 
-import {ai} from '@/ai/genkit';
+import {ai}from '@/ai/genkit';
 import {z}from 'genkit';
+import { analyzeChessGame as analyzeSingleChessGameWithLichess, type AnalyzeChessGameOutput } from './analyze-chess-game'; // Import the Lichess-based analyzer
 
 const DeepAnalyzeGameMetricsInputSchema = z.object({
   gamePgns: z.array(z.string()).min(1).describe("An array of chess games in PGN format (at least one game required)."),
@@ -18,52 +19,126 @@ const DeepAnalyzeGameMetricsInputSchema = z.object({
 });
 export type DeepAnalyzeGameMetricsInput = z.infer<typeof DeepAnalyzeGameMetricsInputSchema>;
 
+// Output schema is kept similar, but content will be more generic
 const WeaknessSchema = z.object({
-  name: z.string().describe("Concise name of the weakness (e.g., 'Endgame Conversion', 'Opening Trap Vulnerability', 'Tactical Oversights'). Should be suitable as a card title."),
-  description: z.string().describe("Detailed explanation of the weakness, its impact, and specific examples if possible from the PGNs."),
+  name: z.string().describe("Concise name of the weakness (e.g., 'High Blunder Rate', 'Frequent Mistakes')."),
+  description: z.string().describe("Detailed explanation of the weakness based on aggregated Lichess analysis."),
   severity: z.enum(["high", "medium", "low"]).describe("Assessed severity of the weakness."),
-  icon: z.enum(["AlertTriangle", "Puzzle", "BrainCircuit", "TrendingDown", "BarChart3"]).optional().describe("Suggested Lucide icon name for this weakness (choose one from: AlertTriangle, Puzzle, BrainCircuit, TrendingDown, BarChart3)."),
+  icon: z.enum(["AlertTriangle", "Puzzle", "BrainCircuit", "TrendingDown", "BarChart3", "Info"]).optional().describe("Suggested Lucide icon name."),
   trainingSuggestion: z.object({
-    text: z.string().describe("A call to action for training (e.g., 'Practice Rook Endgames', 'Study common tactical motifs like forks and pins')."),
-    link: z.string().optional().describe("A relative path to a training page (e.g., '/learn/puzzles', '/learn/openings', or '/train'). Keep links generic for now.")
+    text: z.string().describe("A concrete training suggestion."),
+    link: z.string().optional().describe("A relative path to a training page.")
   }).describe("A concrete training suggestion to address the weakness.")
 });
 
 const DeepAnalyzeGameMetricsOutputSchema = z.object({
-  overallSummary: z.string().describe("A brief (2-3 sentences) overall summary of the player's style, key strengths, and most critical areas for improvement based on the provided games."),
-  primaryWeaknesses: z.array(WeaknessSchema).min(1).max(4).describe("An array of 1 to 4 most impactful weaknesses identified, formatted for display. Each should include a name, description, severity, an optional icon suggestion, and a training suggestion with an optional link."),
+  overallSummary: z.string().describe("A brief overall summary based on aggregated Lichess game analyses."),
+  primaryWeaknesses: z.array(WeaknessSchema).min(1).max(2).describe("An array of 1 to 2 primary areas for improvement."),
 });
 export type DeepAnalyzeGameMetricsOutput = z.infer<typeof DeepAnalyzeGameMetricsOutputSchema>;
 
 
+async function analyzeMetricsWithLichess(input: DeepAnalyzeGameMetricsInput): Promise<DeepAnalyzeGameMetricsOutput> {
+  let totalGamesAnalyzed = 0;
+  let gamesWithBlunders = 0;
+  let gamesWithMistakes = 0;
+  // In a more complex version, we could count total blunders/mistakes across all games.
+  // This requires `analyzeSingleChessGameWithLichess` to return structured counts.
+  // For now, we'll base it on the presence of keywords in the analysis string.
+
+  if (input.gamePgns.length === 0) {
+    return {
+      overallSummary: "No games provided for analysis.",
+      primaryWeaknesses: [{
+        name: "No Games",
+        description: "Please import games to get an analysis.",
+        severity: "low",
+        icon: "Info",
+        trainingSuggestion: { text: "Import games via the Analysis page.", link: "/analysis" }
+      }]
+    };
+  }
+
+  for (const pgn of input.gamePgns) {
+    if (!pgn.trim()) continue;
+    try {
+      const singleGameAnalysis: AnalyzeChessGameOutput = await analyzeSingleChessGameWithLichess({ pgn });
+      totalGamesAnalyzed++;
+      if (singleGameAnalysis.analysis.toLowerCase().includes("blunder")) {
+        gamesWithBlunders++;
+      }
+      if (singleGameAnalysis.analysis.toLowerCase().includes("mistake")) {
+        gamesWithMistakes++;
+      }
+    } catch (error) {
+      console.error("Error analyzing a single game in deepAnalyzeGameMetrics:", error);
+      // Optionally skip this game or mark as failed analysis
+    }
+  }
+
+  let overallSummary = `Analyzed ${totalGamesAnalyzed} game(s). `;
+  const primaryWeaknesses: z.infer<typeof WeaknessSchema>[] = [];
+
+  if (totalGamesAnalyzed === 0 && input.gamePgns.length > 0) {
+    overallSummary = "Could not analyze the provided games using Lichess Stockfish.";
+     primaryWeaknesses.push({
+        name: "Analysis Failed",
+        description: "Failed to process games with Lichess Stockfish. Check individual game analysis or PGN validity.",
+        severity: "high",
+        icon: "AlertTriangle",
+        trainingSuggestion: { text: "Try analyzing a single game first.", link: "/analysis" }
+      });
+  } else if (gamesWithBlunders > totalGamesAnalyzed / 2 || gamesWithBlunders >= 3) { // Example thresholds
+    overallSummary += `A high number of games contained blunders (${gamesWithBlunders}/${totalGamesAnalyzed}).`;
+    primaryWeaknesses.push({
+      name: "Reduce Blunders",
+      description: `Stockfish analysis identified blunders in ${gamesWithBlunders} out of ${totalGamesAnalyzed} games. Focus on minimizing major errors by carefully checking your moves.`,
+      severity: "high",
+      icon: "AlertTriangle",
+      trainingSuggestion: { text: "Practice tactical puzzles and play longer time control games.", link: "/learn/puzzles" }
+    });
+  } else if (gamesWithMistakes > totalGamesAnalyzed / 2 || gamesWithMistakes >= 3) {
+    overallSummary += `Several games contained mistakes (${gamesWithMistakes}/${totalGamesAnalyzed}).`;
+    primaryWeaknesses.push({
+      name: "Minimize Mistakes",
+      description: `Stockfish analysis identified mistakes in ${gamesWithMistakes} out of ${totalGamesAnalyzed} games. Review these positions to understand better alternatives.`,
+      severity: "medium",
+      icon: "TrendingDown",
+      trainingSuggestion: { text: "Analyze your games thoroughly, especially after a loss or a complicated game.", link: "/analysis" }
+    });
+  } else {
+    overallSummary += "No consistent pattern of frequent blunders or mistakes was found across the analyzed games. Keep practicing!";
+    primaryWeaknesses.push({
+      name: "Consistent Practice",
+      description: "Your games show a reasonable level of play according to Stockfish. Continue to practice, study, and analyze to steadily improve all aspects of your game.",
+      severity: "low",
+      icon: "BrainCircuit",
+      trainingSuggestion: { text: "Explore different openings or study endgame principles.", link: "/learn/openings" }
+    });
+  }
+  
+  if (primaryWeaknesses.length === 0) { // Fallback
+     primaryWeaknesses.push({
+        name: "General Improvement",
+        description: "Analyze your games regularly to find areas for improvement. Every game is a learning opportunity.",
+        severity: "medium",
+        icon: "Puzzle",
+        trainingSuggestion: { text: "Use the game analysis tools and practice regularly.", link: "/analysis" }
+    });
+  }
+
+
+  return {
+    overallSummary,
+    primaryWeaknesses: primaryWeaknesses.slice(0,2) // Limit to 1-2 main points
+  };
+}
+
+
+// Exported function that invokes the Genkit flow
 export async function deepAnalyzeGameMetrics(input: DeepAnalyzeGameMetricsInput): Promise<DeepAnalyzeGameMetricsOutput> {
   return deepAnalyzeGameMetricsFlow(input);
 }
-
-const prompt = ai.definePrompt({
-  name: 'deepAnalyzeGameMetricsPrompt',
-  model: 'gemini-pro', // Changed model name
-  input: {schema: DeepAnalyzeGameMetricsInputSchema},
-  output: {schema: DeepAnalyzeGameMetricsOutputSchema},
-  prompt: `You are an expert chess grandmaster and coach, tasked with analyzing a player's game history (provided as an array of PGN strings) to identify key metrics, weaknesses, and provide actionable improvement advice. The player's username is {{playerUsername}}.
-
-Analyze all provided PGNs:
-{{{gamePgns}}}
-
-Based on your analysis:
-1.  Provide a concise 'overallSummary' (2-3 sentences) of the player's style, notable strengths, and the most critical areas needing improvement.
-2.  Identify 1 to 4 'primaryWeaknesses'. For each weakness:
-    *   'name': A short, descriptive title (e.g., "Middlegame Planning", "Tactical Blind Spots", "Endgame Technique").
-    *   'description': A detailed explanation of this weakness. If possible, refer to general patterns or specific types of mistakes observed across the games.
-    *   'severity': Classify as 'high', 'medium', or 'low'.
-    *   'icon': Suggest a relevant Lucide icon name from this list: AlertTriangle, Puzzle, BrainCircuit, TrendingDown, BarChart3.
-    *   'trainingSuggestion':
-        *   'text': Offer a concrete, actionable training tip (e.g., "Focus on solving puzzles involving skewers and discovered attacks.", "Review master games in the Queen's Gambit Declined to understand typical plans.").
-        *   'link': Optionally, suggest a generic link to a relevant section of our app: '/learn/puzzles', '/learn/openings', or '/train'. Do not make up new query parameters.
-
-Focus on providing constructive, insightful, and personalized feedback that will genuinely help the player improve. Ensure your output strictly adheres to the JSON schema.
-`,
-});
 
 const deepAnalyzeGameMetricsFlow = ai.defineFlow(
   {
@@ -71,12 +146,5 @@ const deepAnalyzeGameMetricsFlow = ai.defineFlow(
     inputSchema: DeepAnalyzeGameMetricsInputSchema,
     outputSchema: DeepAnalyzeGameMetricsOutputSchema,
   },
-  async (input) => {
-    const {output} = await prompt(input);
-    if (!output) {
-      console.error('DeepAnalyzeGameMetricsFlow: AI model did not return an output.');
-      throw new Error('Failed to get analysis from AI model. Output was null.');
-    }
-    return output;
-  }
+  analyzeMetricsWithLichess // Use the Lichess-based implementation
 );
