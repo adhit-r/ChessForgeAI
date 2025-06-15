@@ -37,6 +37,7 @@ export async function generateImprovementTips(
 
 const prompt = ai.definePrompt({
   name: 'generateImprovementTipsPrompt',
+  model: 'gemini-1.0-pro',
   input: {schema: GenerateImprovementTipsInputSchema},
   output: {schema: GenerateImprovementTipsOutputSchema},
   prompt: `You are an expert chess coach. Analyze the following chess game analysis and provide 3-5 actionable improvement tips for the player. Include links to relevant Lichess puzzles or openings to help the player focus their training.

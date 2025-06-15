@@ -35,6 +35,7 @@ export async function analyzeGameAndSuggestMove(
 
 const prompt = ai.definePrompt({
   name: 'trainingBotPrompt',
+  model: 'gemini-1.0-pro',
   input: {schema: TrainingBotInputSchema},
   output: {schema: TrainingBotOutputSchema},
   prompt: `You are a chess training bot that analyzes the provided game history and the current board state to suggest the best move for the user.

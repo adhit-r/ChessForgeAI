@@ -58,6 +58,7 @@ const mockPgnData = [
 // This prompt is now more of a fallback or for platforms not directly implemented.
 const prompt = ai.definePrompt({
   name: 'fetchGameHistoryPrompt',
+  model: 'gemini-1.0-pro',
   input: {schema: FetchGameHistoryInputSchema},
   output: {schema: FetchGameHistoryOutputSchema},
   prompt: `You are a chess data provider. 
