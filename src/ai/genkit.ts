@@ -3,6 +3,6 @@ import {googleAI} from '@genkit-ai/googleai';
 
 export const ai = genkit({
   plugins: [googleAI()],
-  // Using 'gemini-pro' as a more standard and widely available model.
+  // Using 'gemini-pro' as a standard, widely available model, often suitable for free/basic tier usage.
   model: 'gemini-pro',
 });
