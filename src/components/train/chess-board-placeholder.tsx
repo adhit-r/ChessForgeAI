@@ -6,29 +6,37 @@ import Image from 'next/image';
 import { Card, CardContent } from '@/components/ui/card';
 
 interface ChessBoardPlaceholderProps {
-  fen?: string; // Optional FEN string to display
+  fen?: string; // FEN string to display
 }
 
 const ChessBoardPlaceholder: React.FC<ChessBoardPlaceholderProps> = ({ fen }) => {
+  // Use a consistent placeholder image; dynamic FEN-to-image is complex
+  const placeholderImageUrl = "https://placehold.co/500x500/FFFFFF/9CA3AF?text=Chess+Board";
+
   return (
-    <Card glass className="aspect-square w-full max-w-lg mx-auto p-2 sm:p-3"> {/* Max width for larger screens */}
+    <Card glass className="aspect-square w-full max-w-lg mx-auto p-2 sm:p-3">
       <CardContent className="p-0 flex flex-col items-center justify-center h-full bg-background/20 rounded-lg shadow-inner-glow">
         <Image 
-          src="https://placehold.co/500x500/FFFFFF/9CA3AF?text=Chess+Board" // Neutral placeholder color
+          src={placeholderImageUrl}
           alt="Chess Board Placeholder" 
           width={500} 
           height={500}
           className="rounded-md object-contain opacity-80"
           data-ai-hint="chess board pieces"
-          priority // Prioritize loading for LCP
+          priority 
         />
         {fen && (
-          <p className="mt-3 text-xs font-code text-center text-muted-foreground p-2 bg-background/30 rounded-md w-full break-all max-w-xs sm:max-w-sm">
-            FEN: {fen}
-          </p>
+          <div className="mt-3 p-2 bg-background/40 rounded-md w-full max-w-xs sm:max-w-sm md:max-w-md text-center">
+            <p className="text-xs font-code text-muted-foreground break-all">
+              Displaying position for FEN:
+            </p>
+            <p className="text-xs font-code text-foreground break-all mt-1">
+              {fen}
+            </p>
+          </div>
         )}
-         <p className="mt-4 text-sm text-center text-muted-foreground">
-            Interactive chessboard coming soon.
+         <p className="mt-2 text-sm text-center text-muted-foreground opacity-70">
+            Interactive chessboard coming soon. Input FEN below to analyze.
           </p>
       </CardContent>
     </Card>
