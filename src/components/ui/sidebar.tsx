@@ -531,70 +531,63 @@ const SidebarMenuButton = React.forwardRef<
     isActive?: boolean;
     tooltip?: string | React.ComponentProps<typeof TooltipContent>;
   } & VariantProps<typeof sidebarMenuButtonVariants>
->(
-  (
-    {
-      asChild: ownAsChild = false,
-      isActive = false,
-      variant = "default",
-      size = "default",
-      tooltip: tooltipProp,
-      className,
-      ...rest
-    },
-    ref
-  ) => {
-    const Comp = ownAsChild ? Slot : "button";
-    const { isMobile, state } = useSidebar();
+>((props, ref) => {
+  const {
+    asChild: ownAsChild = false,
+    isActive = false,
+    variant = "default",
+    size = "default",
+    tooltip: tooltipProp,
+    className,
+    ...remainingParentProps // Props from parent (Link), could include href, onClick, and Link's asChild
+  } = props;
 
-    let propsToSpread = rest;
-    if (!ownAsChild && rest.asChild) {
-      const { asChild: _discard, ...remainingProps } = rest;
-      propsToSpread = remainingProps;
-    } else if (ownAsChild) {
-      propsToSpread = rest;
-    } else {
-      // ownAsChild is false, and rest.asChild is also false or undefined
-      // No need to strip asChild as it's not there or false.
-      const { asChild: _possiblyFalseAsChild, ...remainingProps } = rest;
-      propsToSpread = remainingProps;
-    }
-    
-    const buttonElement = (
-      <Comp
-        ref={ref}
-        data-sidebar="menu-button"
-        data-size={size}
-        data-active={isActive}
-        className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
-        {...propsToSpread} 
-      />
-    );
+  const Comp = ownAsChild ? Slot : "button";
+  const { isMobile, state } = useSidebar();
 
-    if (!tooltipProp) {
-      return buttonElement;
-    }
-    
-    let tooltipContentProps: React.ComponentProps<typeof TooltipContent>;
-    if (typeof tooltipProp === "string") {
-      tooltipContentProps = { children: tooltipProp };
-    } else {
-      tooltipContentProps = tooltipProp;
-    }
+  let propsForComp = { ...remainingParentProps };
 
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>{buttonElement}</TooltipTrigger>
-        <TooltipContent
-          side="right"
-          align="center"
-          hidden={state !== "collapsed" || isMobile}
-          {...tooltipContentProps}
-        />
-      </Tooltip>
-    );
+  if (!ownAsChild) {
+    // If Comp is 'button', we must remove asChild from remainingParentProps
+    // because 'button' doesn't understand it.
+    // The asChild we're deleting here is the one passed by Link.
+    delete (propsForComp as any).asChild;
   }
-);
+
+  const buttonElement = (
+    <Comp
+      ref={ref}
+      data-sidebar="menu-button"
+      data-size={size}
+      data-active={isActive}
+      className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
+      {...propsForComp}
+    />
+  );
+
+  if (!tooltipProp) {
+    return buttonElement;
+  }
+  
+  let tooltipContentProps: React.ComponentProps<typeof TooltipContent>;
+  if (typeof tooltipProp === "string") {
+    tooltipContentProps = { children: tooltipProp };
+  } else {
+    tooltipContentProps = tooltipProp;
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{buttonElement}</TooltipTrigger>
+      <TooltipContent
+        side="right"
+        align="center"
+        hidden={state !== "collapsed" || isMobile}
+        {...tooltipContentProps}
+      />
+    </Tooltip>
+  );
+});
 SidebarMenuButton.displayName = "SidebarMenuButton"
 
 const SidebarMenuAction = React.forwardRef<
@@ -715,24 +708,24 @@ const SidebarMenuSubButton = React.forwardRef<
     size?: "sm" | "md";
     isActive?: boolean;
   }
->(({ 
+>((props, ref) => {
+  const { 
     asChild: ownAsChild = false, 
     size = "md", 
     isActive, 
     className, 
-    ...rest 
-  }, ref) => {
+    ...remainingParentProps
+  } = props;
+
   const Comp = ownAsChild ? Slot : "a"; 
   
-  let propsToSpread = rest;
-  if (!ownAsChild && rest.asChild) {
-    const { asChild: _discard, ...remainingProps } = rest;
-    propsToSpread = remainingProps;
-  } else if (ownAsChild) {
-     propsToSpread = rest;
-  } else {
-    const { asChild: _possiblyFalseAsChild, ...remainingProps } = rest;
-    propsToSpread = remainingProps;
+  let propsForComp = { ...remainingParentProps };
+
+  if (!ownAsChild) {
+    // If Comp is 'a', we must remove asChild from remainingParentProps
+    // because 'a' doesn't understand it.
+    // The asChild we're deleting here is the one passed by Link.
+    delete (propsForComp as any).asChild;
   }
 
   return (
@@ -749,7 +742,7 @@ const SidebarMenuSubButton = React.forwardRef<
         "group-data-[collapsible=icon]:hidden",
         className
       )}
-      {...propsToSpread} 
+      {...propsForComp} 
     />
   )
 })
