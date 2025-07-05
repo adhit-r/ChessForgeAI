@@ -1,17 +1,7 @@
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
 
-'use server';
-/**
- * @fileOverview Fetches chess game history for a user from a specified platform.
- * Lichess is fetched via API. Other platforms return empty as LLM use is removed.
- *
- * - fetchGameHistory - A function that fetches recent games.
- * - FetchGameHistoryInput - The input type for the fetchGameHistory function.
- * - FetchGameHistoryOutput - The return type for the fetchGameHistory function.
- */
-
-import {ai}from '@/ai/genkit';
-import {z}from 'genkit';
-
+// Define the input schema using Zod
 const FetchGameHistoryInputSchema = z.object({
   platform: z.enum(["lichess", "chesscom", "chess24"]).describe('The chess platform (e.g., "lichess", "chesscom", "chess24").'),
   username: z.string().describe('The username on the specified platform.'),
@@ -19,29 +9,23 @@ const FetchGameHistoryInputSchema = z.object({
 });
 export type FetchGameHistoryInput = z.infer<typeof FetchGameHistoryInputSchema>;
 
+// Define the output schema using Zod (though not strictly enforced at runtime for NextResponse content)
 const FetchGameHistoryOutputSchema = z.object({
   games: z.array(z.string().describe("A game in PGN format.")).describe("An array of game PGNs. Returns an empty array if no games are found or an error occurs.")
 });
 export type FetchGameHistoryOutput = z.infer<typeof FetchGameHistoryOutputSchema>;
 
-// The main logic is moved into this implementation function
-async function fetchGameHistoryImplementation(input: FetchGameHistoryInput): Promise<FetchGameHistoryOutput> {
+// The main logic for fetching game history
+async function fetchGameHistoryLogic(input: FetchGameHistoryInput): Promise<FetchGameHistoryOutput> {
   if (input.platform === "lichess") {
     try {
       console.log(`Fetching Lichess games for ${input.username}, max: ${input.maxGames}`);
-      // Common parameters for fetching PGNs:
-      // literate=true (includes comments like clock times if available)
-      // tags=true (includes standard PGN tags)
-      // opening=true (includes ECO code and opening name if Lichess recognizes it)
-      // players=true (includes player details)
       const lichessApiUrl = new URL(`https://lichess.org/api/games/user/${input.username}`);
       lichessApiUrl.searchParams.set('max', String(input.maxGames));
       lichessApiUrl.searchParams.set('pgns', 'true');
-      lichessApiUrl.searchParams.set('literate', 'true'); 
+      lichessApiUrl.searchParams.set('literate', 'true');
       lichessApiUrl.searchParams.set('tags', 'true');
       lichessApiUrl.searchParams.set('opening', 'true');
-      // lichessApiUrl.searchParams.set('clocks', 'true'); // To include clock comments
-      // lichessApiUrl.searchParams.set('evals', 'false'); // Evals not needed here, analyze separately
 
       const response = await fetch(
         lichessApiUrl.toString(),
@@ -58,37 +42,60 @@ async function fetchGameHistoryImplementation(input: FetchGameHistoryInput): Pro
       }
 
       const textData = await response.text();
+      // Split PGNs. Lichess uses three newlines as a separator for multiple PGNs in application/x-nd-pgn format.
       const games = textData.trim().split(/\n\n\n|\r\n\r\n\r\n/).filter(pgn => pgn.trim().startsWith('[Event') && pgn.length > 20);
       console.log(`Fetched ${games.length} games from Lichess for ${input.username}`);
       return { games };
 
     } catch (error) {
       console.error(`Failed to fetch games from Lichess for ${input.username}:`, error);
-      return { games: [] }; // Return empty on error
+      return { games: [] };
     }
   } else if (input.platform === "chesscom") {
-    console.log(`Chess.com game fetching for ${input.username} not implemented with direct API (requires auth or different API). Returning empty.`);
+    console.log(`Chess.com game fetching for ${input.username} not implemented. Returning empty.`);
     return { games: [] };
   } else if (input.platform === "chess24") {
     console.log(`Chess24 game fetching for ${input.username} not implemented. Returning empty.`);
     return { games: [] };
   }
-  
-  console.warn(`Platform ${input.platform} not implemented for game fetching or LLM fallback removed. Returning empty array.`);
+
+  console.warn(`Platform ${input.platform} not implemented. Returning empty array.`);
   return { games: [] };
 }
 
-// Exported function that invokes the Genkit flow
-export async function fetchGameHistory(input: FetchGameHistoryInput): Promise<FetchGameHistoryOutput> {
-  return fetchGameHistoryFlow(input);
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const validatedInput = FetchGameHistoryInputSchema.safeParse(body);
+
+    if (!validatedInput.success) {
+      return NextResponse.json({ error: 'Invalid input', details: validatedInput.error.flatten() }, { status: 400 });
+    }
+
+    const output = await fetchGameHistoryLogic(validatedInput.data);
+    return NextResponse.json(output);
+
+  } catch (error) {
+    console.error('Error in fetch-game-history API route:', error);
+    if (error instanceof SyntaxError) { // Handle cases where request.json() fails
+        return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
+    }
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 }
 
-const fetchGameHistoryFlow = ai.defineFlow(
-  {
-    name: 'fetchGameHistoryFlow',
-    inputSchema: FetchGameHistoryInputSchema,
-    outputSchema: FetchGameHistoryOutputSchema,
-  },
-  fetchGameHistoryImplementation
-);
-// Removed the ai.definePrompt for 'fetchGameHistoryPrompt' as it's no longer used.
+// Optionally, can add a GET handler if you want to pass parameters via URL query
+// export async function GET(request: Request) {
+//   const { searchParams } = new URL(request.url);
+//   const params = Object.fromEntries(searchParams.entries());
+//   // Convert params to appropriate types for validation if needed (e.g., maxGames to number)
+//   const validatedInput = FetchGameHistoryInputSchema.safeParse(params);
+//
+//   if (!validatedInput.success) {
+//     return NextResponse.json({ error: 'Invalid input', details: validatedInput.error.flatten() }, { status: 400 });
+//   }
+//
+//   const output = await fetchGameHistoryLogic(validatedInput.data);
+//   return NextResponse.json(output);
+// }

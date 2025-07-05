@@ -14,7 +14,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from "@/hooks/use-toast";
 
-import { analyzeGameAndSuggestMove, TrainingBotInput, TrainingBotOutput } from '@/ai/flows/training-bot-analysis';
+// Import types from the new API route location
+import { type TrainingBotInput, type TrainingBotOutput } from '@/app/api/ai/training-bot-analysis/route';
 import EvaluationBar from './evaluation-bar';
 
 // Basic FEN validation: checks for 6 space-separated parts, and some common characters.
@@ -92,7 +93,18 @@ export default function TrainingBotInterface({ onFenAnalyzed, initialFen }: Trai
         // gameHistory and moveNumber are less critical for single FEN analysis but can be kept if needed
       };
 
-      const response = await analyzeGameAndSuggestMove(botInput);
+      // Call the new API route
+      const apiResponse = await fetch('/api/ai/training-bot-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(botInput),
+      });
+
+      if (!apiResponse.ok) {
+        const errorData = await apiResponse.json().catch(() => ({ error: 'Training bot analysis request failed with status ' + apiResponse.status }));
+        throw new Error(errorData.error || 'Failed to get analysis from training bot');
+      }
+      const response: TrainingBotOutput = await apiResponse.json();
       
       addLogEntry({
         fen: fenToAnalyze,

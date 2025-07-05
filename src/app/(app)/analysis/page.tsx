@@ -18,9 +18,11 @@ import { FileText, Lightbulb, Loader2, AlertCircle, CheckCircle, UserSearch, Bar
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 
-import { analyzeChessGame, AnalyzeChessGameOutput } from '@/ai/flows/analyze-chess-game';
-import { generateImprovementTips, GenerateImprovementTipsOutput } from '@/ai/flows/generate-improvement-tips';
-import { fetchGameHistory, FetchGameHistoryOutput } from '@/ai/flows/fetch-game-history';
+// Import types from the new API route locations
+import { type AnalyzeChessGameOutput } from '@/app/api/ai/analyze-chess-game/route';
+import { type GenerateImprovementTipsOutput } from '@/app/api/ai/generate-improvement-tips/route';
+import { type FetchGameHistoryOutput, type FetchGameHistoryInput } from '@/app/api/ai/fetch-game-history/route';
+
 
 const pgnImportSchema = z.object({
   pgn: z.string().min(10, { message: "PGN data seems too short." }).max(30000, { message: "PGN data is too long (max 30k chars)." }),
@@ -58,12 +60,32 @@ export default function AnalysisPage() {
       return;
     }
     try {
-      const analysis = await analyzeChessGame({ pgn: pgnData });
+      // Call the new API route for analyzeChessGame
+      const analysisResponse = await fetch('/api/ai/analyze-chess-game', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pgn: pgnData }),
+      });
+      if (!analysisResponse.ok) {
+        const errorData = await analysisResponse.json().catch(() => ({ error: 'Analysis request failed with status ' + analysisResponse.status }));
+        throw new Error(errorData.error || 'Failed to analyze game');
+      }
+      const analysis: AnalyzeChessGameOutput = await analysisResponse.json();
       setAnalysisResult(analysis);
       toast({ title: `Game from ${source} Analyzed`, description: "Stockfish analysis complete.", variant: "default" });
 
       if (analysis?.analysis) {
-        const tips = await generateImprovementTips({ gameAnalysis: analysis.analysis });
+        // Call the new API route for generateImprovementTips
+        const tipsResponse = await fetch('/api/ai/generate-improvement-tips', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ gameAnalysis: analysis.analysis }),
+        });
+        if (!tipsResponse.ok) {
+          const errorData = await tipsResponse.json().catch(() => ({ error: 'Tips generation request failed with status ' + tipsResponse.status }));
+          throw new Error(errorData.error || 'Failed to generate tips');
+        }
+        const tips: GenerateImprovementTipsOutput = await tipsResponse.json();
         setImprovementTips(tips);
         toast({ title: "Tips Generated", description: "Improvement suggestions are ready.", variant: "default" });
       }
@@ -89,7 +111,24 @@ export default function AnalysisPage() {
     setImprovementTips(null);
     try {
       toast({ title: "Fetching Games...", description: `Attempting to fetch games for ${data.username} from ${data.platform}.`, variant: "default"});
-      const historyOutput = await fetchGameHistory({ platform: data.platform as "lichess" | "chesscom" | "chess24", username: data.username, maxGames: 1 });
+
+      // Call the new API route for fetchGameHistory
+      const historyInput: FetchGameHistoryInput = {
+        platform: data.platform as "lichess" | "chesscom" | "chess24",
+        username: data.username,
+        maxGames: 1
+      };
+      const historyResponse = await fetch('/api/ai/fetch-game-history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(historyInput),
+      });
+
+      if (!historyResponse.ok) {
+        const errorData = await historyResponse.json().catch(() => ({ error: 'Fetch game history request failed with status ' + historyResponse.status }));
+        throw new Error(errorData.error || 'Failed to fetch game history');
+      }
+      const historyOutput: FetchGameHistoryOutput = await historyResponse.json();
 
       if (historyOutput.games && historyOutput.games.length > 0) {
         toast({ title: "Games Fetched!", description: `Found ${historyOutput.games.length} game(s). Analyzing the latest one.`, variant: "default"});
