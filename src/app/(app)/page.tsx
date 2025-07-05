@@ -19,9 +19,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend } from 'recharts';
 
+// Import types from the new API route locations
+import { type FetchGameHistoryInput, type FetchGameHistoryOutput } from '@/app/api/ai/fetch-game-history/route';
+import { type DeepAnalyzeGameMetricsInput, type DeepAnalyzeGameMetricsOutput } from '@/app/api/ai/deep-analyze-game-metrics/route';
 
-import { fetchGameHistory, FetchGameHistoryInput } from '@/ai/flows/fetch-game-history';
-import { deepAnalyzeGameMetrics, DeepAnalyzeGameMetricsOutput } from '@/ai/flows/deep-analyze-game-metrics';
 
 interface Insight {
   id: string;
@@ -260,10 +261,19 @@ export default function DashboardPage() {
     setActiveUsername(data.lichessUsername);
 
     try {
-      const historyInput: FetchGameHistoryInput = { platform: "lichess", username: data.lichessUsername, maxGames: 20 }; // Fetch more for trend
-      const historyOutput = await fetchGameHistory(historyInput);
-      const fetchedParsedGames = historyOutput.games.map(parsePgn).filter(g => g.tags.length > 0);
+      const historyInputPayload: FetchGameHistoryInput = { platform: "lichess", username: data.lichessUsername, maxGames: 20 };
+      const historyResponse = await fetch('/api/ai/fetch-game-history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(historyInputPayload),
+      });
 
+      if (!historyResponse.ok) {
+        const errorData = await historyResponse.json().catch(() => ({ error: 'Fetch game history request failed with status ' + historyResponse.status }));
+        throw new Error(errorData.error || `Failed to fetch game history for ${data.lichessUsername}`);
+      }
+      const historyOutput: FetchGameHistoryOutput = await historyResponse.json();
+      const fetchedParsedGames = historyOutput.games.map(parsePgn).filter(g => g.tags.length > 0);
 
       if (fetchedParsedGames.length > 0) {
         toast({
@@ -281,7 +291,24 @@ export default function DashboardPage() {
           colSpan: "lg:col-span-full",
         }]);
 
-        const deepAnalysis = await deepAnalyzeGameMetrics({ gamePgns: historyOutput.games, playerUsername: data.lichessUsername });
+        // Call the new API route for deepAnalyzeGameMetrics
+        const deepAnalysisInput: DeepAnalyzeGameMetricsInput = {
+          gamePgns: historyOutput.games,
+          playerUsername: data.lichessUsername,
+          baseUrl: window.location.origin // Provide current origin as baseUrl
+        };
+        const deepAnalysisResponse = await fetch('/api/ai/deep-analyze-game-metrics', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(deepAnalysisInput),
+        });
+
+        if (!deepAnalysisResponse.ok) {
+          const errorData = await deepAnalysisResponse.json().catch(() => ({ error: 'Deep analysis request failed with status ' + deepAnalysisResponse.status }));
+          throw new Error(errorData.error || `Failed to perform deep analysis for ${data.lichessUsername}`);
+        }
+        const deepAnalysis: DeepAnalyzeGameMetricsOutput = await deepAnalysisResponse.json();
+
         processAndDisplayAnalysis(deepAnalysis, data.lichessUsername, fetchedParsedGames);
         toast({
           title: "Analysis Complete",

@@ -36,8 +36,9 @@ This project is developed in Firebase Studio.
     - [Tailwind CSS](https://tailwindcss.com/) (Utility-first CSS framework)
     - [Lucide React](https://lucide.dev/) (Icons)
 - **AI & Backend Logic**:
-    - [Genkit (by Google)](https://firebase.google.com/docs/genkit): For orchestrating AI flows and interacting with generative models.
-    - [Google AI (Gemini Models)](https://ai.google.dev/): Powering the AI analysis and suggestions.
+    - AI-powered features (game analysis, suggestions) are provided via Next.js API Routes.
+    - Analysis primarily utilizes the [Lichess API](https://lichess.org/api) for Stockfish cloud evaluation.
+    - Direct integration with generative models like Google's Gemini is planned for future enhancements.
 - **Authentication & Backend Services**:
     - [Firebase](https://firebase.google.com/)
         - Firebase Authentication (Google, Lichess via Custom Auth, Anonymous)
@@ -82,14 +83,6 @@ Replace `your_...` with your actual credentials. You'll need to set up a Firebas
    yarn dev
    ```
    The application will be available at `http://localhost:9002` (or the port specified in `package.json`).
-
-3. **Run the Genkit development server** (in a separate terminal):
-   ```bash
-   npm run genkit:dev
-   # or for watching changes
-   npm run genkit:watch
-   ```
-   This starts the Genkit development environment, typically on `http://localhost:4000`.
 
 ## 🔮 Planned Features & Next Steps
 - **Full Lichess API Integration**: Fetch actual game history and user data.
