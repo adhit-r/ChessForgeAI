@@ -18,9 +18,15 @@ import { FileText, Lightbulb, Loader2, AlertCircle, CheckCircle, UserSearch, Bar
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 
-import { analyzeChessGame, AnalyzeChessGameOutput } from '@/ai/flows/analyze-chess-game';
-import { generateImprovementTips, GenerateImprovementTipsOutput } from '@/ai/flows/generate-improvement-tips';
-import { fetchGameHistory, FetchGameHistoryOutput } from '@/ai/flows/fetch-game-history';
+// Import types from the centralized api-schemas file
+import {
+  type AnalyzeChessGameOutput,
+  type GenerateImprovementTipsOutput,
+  type FetchGameHistoryOutput,
+  type FetchGameHistoryInput
+} from '@/lib/types/api-schemas';
+import { apiClient } from '@/lib/api-client';
+
 
 const pgnImportSchema = z.object({
   pgn: z.string().min(10, { message: "PGN data seems too short." }).max(30000, { message: "PGN data is too long (max 30k chars)." }),
@@ -58,12 +64,12 @@ export default function AnalysisPage() {
       return;
     }
     try {
-      const analysis = await analyzeChessGame({ pgn: pgnData });
+      const analysis = await apiClient.analyzeChessGame({ pgn: pgnData });
       setAnalysisResult(analysis);
       toast({ title: `Game from ${source} Analyzed`, description: "Stockfish analysis complete.", variant: "default" });
 
       if (analysis?.analysis) {
-        const tips = await generateImprovementTips({ gameAnalysis: analysis.analysis });
+        const tips = await apiClient.generateImprovementTips({ gameAnalysis: analysis.analysis });
         setImprovementTips(tips);
         toast({ title: "Tips Generated", description: "Improvement suggestions are ready.", variant: "default" });
       }
@@ -89,7 +95,14 @@ export default function AnalysisPage() {
     setImprovementTips(null);
     try {
       toast({ title: "Fetching Games...", description: `Attempting to fetch games for ${data.username} from ${data.platform}.`, variant: "default"});
-      const historyOutput = await fetchGameHistory({ platform: data.platform as "lichess" | "chesscom" | "chess24", username: data.username, maxGames: 1 });
+
+      // Call the new API route for fetchGameHistory
+      const historyInput: FetchGameHistoryInput = {
+        platform: data.platform as "lichess" | "chesscom" | "chess24",
+        username: data.username,
+        maxGames: 1
+      };
+      const historyOutput = await apiClient.fetchGameHistory(historyInput);
 
       if (historyOutput.games && historyOutput.games.length > 0) {
         toast({ title: "Games Fetched!", description: `Found ${historyOutput.games.length} game(s). Analyzing the latest one.`, variant: "default"});

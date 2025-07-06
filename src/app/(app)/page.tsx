@@ -19,9 +19,15 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend } from 'recharts';
 
+// Import types from the centralized api-schemas file
+import {
+  type FetchGameHistoryInput,
+  type FetchGameHistoryOutput,
+  type DeepAnalyzeGameMetricsInput,
+  type DeepAnalyzeGameMetricsOutput
+} from '@/lib/types/api-schemas';
+import { apiClient } from '@/lib/api-client';
 
-import { fetchGameHistory, FetchGameHistoryInput } from '@/ai/flows/fetch-game-history';
-import { deepAnalyzeGameMetrics, DeepAnalyzeGameMetricsOutput } from '@/ai/flows/deep-analyze-game-metrics';
 
 interface Insight {
   id: string;
@@ -260,10 +266,9 @@ export default function DashboardPage() {
     setActiveUsername(data.lichessUsername);
 
     try {
-      const historyInput: FetchGameHistoryInput = { platform: "lichess", username: data.lichessUsername, maxGames: 20 }; // Fetch more for trend
-      const historyOutput = await fetchGameHistory(historyInput);
+      const historyInputPayload: FetchGameHistoryInput = { platform: "lichess", username: data.lichessUsername, maxGames: 20 };
+      const historyOutput = await apiClient.fetchGameHistory(historyInputPayload);
       const fetchedParsedGames = historyOutput.games.map(parsePgn).filter(g => g.tags.length > 0);
-
 
       if (fetchedParsedGames.length > 0) {
         toast({
@@ -281,7 +286,13 @@ export default function DashboardPage() {
           colSpan: "lg:col-span-full",
         }]);
 
-        const deepAnalysis = await deepAnalyzeGameMetrics({ gamePgns: historyOutput.games, playerUsername: data.lichessUsername });
+        const deepAnalysisInput: DeepAnalyzeGameMetricsInput = {
+          gamePgns: historyOutput.games,
+          playerUsername: data.lichessUsername,
+          baseUrl: window.location.origin // apiClient will handle this if not provided client-side
+        };
+        const deepAnalysis = await apiClient.deepAnalyzeGameMetrics(deepAnalysisInput);
+
         processAndDisplayAnalysis(deepAnalysis, data.lichessUsername, fetchedParsedGames);
         toast({
           title: "Analysis Complete",

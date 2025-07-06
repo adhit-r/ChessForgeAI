@@ -14,7 +14,9 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from "@/hooks/use-toast";
 
-import { analyzeGameAndSuggestMove, TrainingBotInput, TrainingBotOutput } from '@/ai/flows/training-bot-analysis';
+// Import types from the centralized api-schemas file
+import { type TrainingBotInput, type TrainingBotOutput } from '@/lib/types/api-schemas';
+import { apiClient } from '@/lib/api-client';
 import EvaluationBar from './evaluation-bar';
 
 // Basic FEN validation: checks for 6 space-separated parts, and some common characters.
@@ -92,7 +94,7 @@ export default function TrainingBotInterface({ onFenAnalyzed, initialFen }: Trai
         // gameHistory and moveNumber are less critical for single FEN analysis but can be kept if needed
       };
 
-      const response = await analyzeGameAndSuggestMove(botInput);
+      const response = await apiClient.trainingBotAnalysis(botInput);
       
       addLogEntry({
         fen: fenToAnalyze,

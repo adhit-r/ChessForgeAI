@@ -1,30 +1,7 @@
+import { NextResponse } from 'next/server';
+import { AnalyzeChessGameInputSchema, type AnalyzeChessGameInput, type AnalyzeChessGameOutput } from '@/lib/types/api-schemas';
 
-'use server';
-
-/**
- * @fileOverview Chess game analysis flow to identify blunders, mistakes, and inaccuracies
- * using Lichess Stockfish cloud evaluation.
- *
- * - analyzeChessGame - Analyzes a chess game provided in PGN format.
- * - AnalyzeChessGameInput - The input type for the analyzeChessGame function.
- * - AnalyzeChessGameOutput - The return type for the analyzeChessGame function.
- */
-
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
-
-const AnalyzeChessGameInputSchema = z.object({
-  pgn: z.string().describe('The chess game in PGN format.'),
-});
-export type AnalyzeChessGameInput = z.infer<typeof AnalyzeChessGameInputSchema>;
-
-const AnalyzeChessGameOutputSchema = z.object({
-  analysis: z.string().describe('A summary of the chess game analysis from Lichess Stockfish, highlighting significant evaluation swings (blunders, mistakes, inaccuracies).'),
-  // Optionally, we could return more structured data in the future
-  // significantMoves: z.array(z.object({ /* ... */ })).optional(),
-});
-export type AnalyzeChessGameOutput = z.infer<typeof AnalyzeChessGameOutputSchema>;
-
+// Constants and helper types/functions (copied from original)
 const BLUNDER_THRESHOLD_CP = 200;
 const MISTAKE_THRESHOLD_CP = 100;
 const INACCURACY_THRESHOLD_CP = 50;
@@ -63,7 +40,8 @@ async function getLichessAnalysis(pgn: string): Promise<LichessEvalLine[]> {
   }
 }
 
-async function analyzeChessGameWithLichessImpl(input: AnalyzeChessGameInput): Promise<AnalyzeChessGameOutput> {
+// Core logic function (renamed from analyzeChessGameWithLichessImpl)
+async function analyzeChessGameLogic(input: AnalyzeChessGameInput): Promise<AnalyzeChessGameOutput> {
   const lichessEvals = await getLichessAnalysis(input.pgn);
 
   if (lichessEvals.length === 0) {
@@ -95,9 +73,18 @@ async function analyzeChessGameWithLichessImpl(input: AnalyzeChessGameInput): Pr
   }
 
   const processedEvalsList = [];
-  if (evals[0].ply > 1) { 
+  // Ensure there's a baseline eval at ply 0 (before any moves) if Lichess data doesn't start from there.
+  // Lichess cloud eval usually starts providing evals after the first move (ply 1).
+  // A ply 0 eval is typically 0 (neutral) or a small standard opening book value. We use 0 for simplicity.
+  if (evals.length > 0 && evals[0].ply > 1) {
     processedEvalsList.push({ply: 0, cp: 0}); 
+  } else if (evals.length === 0 && lichessEvals.length > 0) {
+    // This case means lichessEvals had items, but none had valid 'cp' or 'ply > 0'.
+    // Still, good to have a baseline if we proceed (though current logic returns "No valid evaluation points").
+    processedEvalsList.push({ply: 0, cp: 0});
   }
+
+
   processedEvalsList.push(...evals);
 
 
@@ -108,10 +95,13 @@ async function analyzeChessGameWithLichessImpl(input: AnalyzeChessGameInput): Pr
     const player = getPlayerForPly(currentPlyInfo.ply);
     let cpLossForPlayer = 0;
 
+    // White wants higher CP, Black wants lower CP (more negative).
+    // cpLoss for White: prevEval - currentEval
+    // cpLoss for Black: -(prevEval - currentEval) which is currentEval - prevEval
     if (player === 'White') { 
       cpLossForPlayer = prevPlyInfo.cp - currentPlyInfo.cp;
-    } else { 
-      cpLossForPlayer = -(prevPlyInfo.cp - currentPlyInfo.cp); 
+    } else { // Black's turn
+      cpLossForPlayer = -(prevPlyInfo.cp - currentPlyInfo.cp); // cp gain for white is cp loss for black
     }
     
     let moveType: 'Blunder' | 'Mistake' | 'Inaccuracy' | null = null;
@@ -128,9 +118,9 @@ async function analyzeChessGameWithLichessImpl(input: AnalyzeChessGameInput): Pr
         moveNumber,
         type: moveType,
         cpDrop: Math.round(cpLossForPlayer),
-        evalBefore: Math.round(prevPlyInfo.cp), 
-        evalAfter: Math.round(currentPlyInfo.cp),  
-        description: `${moveType} by ${player} (move ${playerMoveIndicator.trim()}). Eval for White changed from ${(prevPlyInfo.cp/100).toFixed(2)} to ${(currentPlyInfo.cp/100).toFixed(2)}. Player's loss: ${(cpLossForPlayer/100).toFixed(2)}cp.`
+        evalBefore: Math.round(player === 'White' ? prevPlyInfo.cp : -prevPlyInfo.cp), // Eval from player's perspective
+        evalAfter: Math.round(player === 'White' ? currentPlyInfo.cp : -currentPlyInfo.cp), // Eval from player's perspective
+        description: `${moveType} by ${player} (move ${playerMoveIndicator.trim()}). Eval (White's view) changed from ${(prevPlyInfo.cp/100).toFixed(2)} to ${(currentPlyInfo.cp/100).toFixed(2)}. Player's perspective loss: ${(cpLossForPlayer/100).toFixed(2)}cp.`
       });
     }
   }
@@ -140,21 +130,30 @@ async function analyzeChessGameWithLichessImpl(input: AnalyzeChessGameInput): Pr
     analysisTextResult += "No significant blunders, mistakes, or inaccuracies detected based on centipawn evaluation swings.\n";
   } else {
     analysisTextResult += significantSwings.map(s => s.description).join("\n");
-    analysisTextResult += "\n\n(Note: Player's loss indicates how much their position worsened according to Stockfish after their move.)";
+    analysisTextResult += "\n\n(Note: Player's perspective loss indicates how much their position worsened according to Stockfish after their move, from their point of view.)";
   }
 
   return { analysis: analysisTextResult };
 }
 
-export async function analyzeChessGame(input: AnalyzeChessGameInput): Promise<AnalyzeChessGameOutput> {
-  return analyzeChessGameFlowImpl(input);
-}
+// Next.js API Route handler
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const validatedInput = AnalyzeChessGameInputSchema.safeParse(body);
 
-const analyzeChessGameFlowImpl = ai.defineFlow(
-  {
-    name: 'analyzeChessGameFlow',
-    inputSchema: AnalyzeChessGameInputSchema,
-    outputSchema: AnalyzeChessGameOutputSchema,
-  },
-  analyzeChessGameWithLichessImpl
-);
+    if (!validatedInput.success) {
+      return NextResponse.json({ error: 'Invalid input', details: validatedInput.error.flatten() }, { status: 400 });
+    }
+
+    const output = await analyzeChessGameLogic(validatedInput.data);
+    return NextResponse.json(output);
+
+  } catch (error) {
+    console.error('Error in analyze-chess-game API route:', error);
+    if (error instanceof SyntaxError) {
+        return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
+    }
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
