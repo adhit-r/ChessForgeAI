@@ -78,38 +78,3 @@ export class ApiError extends Error {
 }
 
 // Example of a more robust post function using ApiError
-async function postWithCustomError<TInput, TOutput>(endpoint: string, payload: TInput): Promise<TOutput> {
-  const response = await fetch(`/api/ai${endpoint}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    let errorDetails;
-    try {
-      errorDetails = await response.json();
-    } catch (e) {
-      errorDetails = { message: response.statusText };
-    }
-    throw new ApiError(
-      errorDetails?.error || errorDetails?.message || `API request failed`,
-      response.status,
-      errorDetails?.details
-    );
-  }
-  return response.json() as Promise<TOutput>;
-}
-
-// Re-exporting the apiClient with the more robust error handling if preferred.
-// For this iteration, I'll stick to the simpler one above, but this is a common pattern.
-/*
-export const apiClientV2 = {
-  fetchGameHistory: (payload: FetchGameHistoryInput): Promise<FetchGameHistoryOutput> => {
-    return postWithCustomError<FetchGameHistoryInput, FetchGameHistoryOutput>('/fetch-game-history', payload);
-  },
-  // ... other methods using postWithCustomError
-};
-*/
