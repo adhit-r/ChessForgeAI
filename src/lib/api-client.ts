@@ -43,15 +43,16 @@ export const apiClient = {
     // If this client is only used client-side, window.location.origin can be automatically added here,
     // or it must be ensured that the caller provides it.
     // For now, assuming payload includes baseUrl if called from client.
+    let modifiedPayload = payload;
     if (typeof window !== 'undefined' && !payload.baseUrl) {
         // Automatically set baseUrl if running in browser and not already set
-        payload.baseUrl = window.location.origin;
+        modifiedPayload = { ...payload, baseUrl: window.location.origin };
     } else if (!payload.baseUrl) {
         // This case should ideally not happen if called from server-side without explicit baseUrl.
         // Or, if called server-side, baseUrl should point to the deployed app's URL.
         console.warn("apiClient.deepAnalyzeGameMetrics: baseUrl is not set and not in a browser environment. Self-API calls might fail or use unexpected URLs if this API route is called by another server-side process without a full URL.");
     }
-    return post<DeepAnalyzeGameMetricsInput, DeepAnalyzeGameMetricsOutput>('/deep-analyze-game-metrics', payload);
+    return post<DeepAnalyzeGameMetricsInput, DeepAnalyzeGameMetricsOutput>('/deep-analyze-game-metrics', modifiedPayload);
   },
 
   generateImprovementTips: (payload: GenerateImprovementTipsInput): Promise<GenerateImprovementTipsOutput> => {
