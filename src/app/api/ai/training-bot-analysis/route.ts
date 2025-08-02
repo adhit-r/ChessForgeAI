@@ -68,7 +68,7 @@ async function trainingBotLogic(input: TrainingBotInput): Promise<TrainingBotOut
   return {
     suggestedMove: analysis.moveUci || "N/A (eval only)",
     evaluation: finalEval,
-    explanation: `Lichess Stockfish. Eval: ${(finalEval/100.0).toFixed(2)}. ${analysis.mate ? `Mate: ${analysis.mate}.` : `CP: ${finalEval}.`}`,
+    explanation: formatTrainingBotExplanation(finalEval, analysis.mate),
   };
 }
 
