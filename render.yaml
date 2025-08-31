@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: chessforge-backend
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: chessforge-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: chessforge-redis
+          property: connectionString
+
+  - type: redis
+    name: chessforge-redis
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+
+databases:
+  - name: chessforge-db
+    databaseName: chessforge
+    user: chessforge_user
+    plan: free
