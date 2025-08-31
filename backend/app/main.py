@@ -31,8 +31,6 @@ async def lifespan(app: FastAPI):
     """Application lifespan events"""
     # Startup
     logger.info("Starting ChessForgeAI Backend")
-    
-    # Note: Database initialization will be done lazily when needed
     logger.info("Backend started successfully")
     
     yield
