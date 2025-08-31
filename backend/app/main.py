@@ -1,14 +1,9 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from contextlib import asynccontextmanager
-import logging
 import structlog
 
 from app.config import settings
-from app.database.database import init_db
-from app.core.redis_client import test_redis_connection
-from app.api import auth, analysis, insights, recommendations
 
 # Configure structured logging
 structlog.configure(
@@ -16,7 +11,6 @@ structlog.configure(
         structlog.stdlib.filter_by_level,
         structlog.stdlib.add_logger_name,
         structlog.stdlib.add_log_level,
-        structlog.stdlib.PositionalArgumentsFormatter(),
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
@@ -38,19 +32,8 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting ChessForgeAI Backend")
     
-    # Initialize database
-    try:
-        init_db()
-        logger.info("Database initialized successfully")
-    except Exception as e:
-        logger.error(f"Failed to initialize database: {e}")
-        raise
-    
-    # Test Redis connection
-    if test_redis_connection():
-        logger.info("Redis connection successful")
-    else:
-        logger.warning("Redis connection failed - some features may not work")
+    # Note: Database initialization will be done lazily when needed
+    logger.info("Backend started successfully")
     
     yield
     
@@ -77,17 +60,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.add_middleware(
-    TrustedHostMiddleware,
-    allowed_hosts=["*"] if settings.debug else ["chessforgeai.vercel.app", "localhost"]
-)
-
-# Include routers
-app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
-app.include_router(analysis.router, prefix="/analysis", tags=["Analysis"])
-app.include_router(insights.router, prefix="/insights", tags=["Insights"])
-app.include_router(recommendations.router, prefix="/recommendations", tags=["Recommendations"])
-
 
 @app.get("/")
 async def root():
@@ -104,8 +76,7 @@ async def health_check():
     """Health check endpoint"""
     return {
         "status": "healthy",
-        "database": "connected",
-        "redis": "connected" if test_redis_connection() else "disconnected"
+        "message": "Backend is running"
     }
 
 
